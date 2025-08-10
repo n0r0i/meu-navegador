@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Site Bloqueado</title>
+    <style>
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            background-color: #202324; color: #e8eaed; font-family: system-ui, sans-serif;
+            text-align: center;
+        }
+        .container { max-width: 600px; padding: 20px; }
+        h1 { font-size: 2em; color: #e57373; margin-bottom: 10px; }
+        p { font-size: 1.1em; margin-bottom: 30px; }
+        #blocked-url { font-weight: bold; color: #bdc1c6; word-break: break-all; }
+        button {
+            background-color: #4caf50; color: white; border: none;
+            padding: 12px 25px; font-size: 1em; border-radius: 5px;
+            cursor: pointer; transition: background-color 0.2s;
+        }
+        button:hover { background-color: #45a049; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Acesso Bloqueado</h1>
+        <p>
+            O site <span id="blocked-url"></span> foi bloqueado por uma das suas listas de filtros.
+        </p>
+        <button id="whitelist-btn">Adicionar à whitelist e continuar</button>
+    </div>
+    <script src="./js/blocked.js" defer></script>
+</body>
+</html>

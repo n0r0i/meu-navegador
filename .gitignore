@@ -1,0 +1,14 @@
+# Dependências do Node.js
+/node_modules
+
+# Ficheiros de Log
+npm-debug.log
+yarn-error.log
+yarn-debug.log
+
+# Ficheiros gerados pelo projeto
+/adblocker-engine.bin
+
+# Ficheiros de sistema
+.DS_Store
+Thumbs.db

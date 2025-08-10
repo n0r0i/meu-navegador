@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Meu Navegador</title>
+    <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <div class="tab-bar">
+            <div id="tabs-container" class="tabs-container"></div>
+            <button id="new-tab-btn" class="new-tab-button" title="Nova Aba">+</button>
+        </div>
+<div class="nav-bar">
+    <button id="back-btn" class="nav-button">←</button>
+    <button id="forward-btn" class="nav-button">→</button>
+    <button id="reload-btn" class="nav-button">↻</button>
+    <button id="add-bookmark-btn" class="nav-button" title="Adicionar aos Favoritos">⭐</button>
+    <button id="tor-toggle-btn" class="nav-button" title="Ativar/Desativar Modo Anônimo (Tor)">🧅</button>
+    <button id="adblock-toggle-btn" class="nav-button" title="Ativar/Desativar Bloqueador">🛡️</button>
+    <input type="text" id="url-input" placeholder="Digite uma URL ou pesquise">
+    <button id="settings-btn" title="Configurações">⚙️</button>
+</div>
+        <div class="main-container">
+            <div class="content"></div>
+        </div>
+    </div>
+
+    <div class="toolbar">
+    <input type="text" id="url-input" placeholder="Digite um endereço ou pesquisa">
+
+    <button id="settings-btn" title="Configurações">⚙️</button>
+</div>
+    
+    
+    <script src="./js/renderer.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+html {
+    height: 100vh;
+    width: 100vw;
+    margin: 0;
+    padding: 0;
+    background: var(--bg-image, #202324) no-repeat center center / cover;
+}
+
+body {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: #e8eaed;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    text-align: center;
+    text-shadow: 0px 0px 8px rgba(0, 0, 0, 0.6);
+}
+
+#search-input {
+    width: 50%; 
+    max-width: 600px;
+    padding: 15px; 
+    font-size: 1rem; 
+    border-radius: 30px; 
+    border: none; 
+    text-align: center;
+    margin-bottom: 40px;
+    background-color: rgba(255, 255, 255, 0.9);
+    color: #000;
+}
+
+#clock-container {
+    font-weight: bold;
+    font-size: clamp(4rem, 20vw, 8rem);
+}
+
+#clock-seconds {
+    font-size: clamp(1rem, 5vw, 2rem); 
+    vertical-align: top; 
+    margin-left: 10px;
+}
+
+#date-container {
+    font-size: clamp(1rem, 4vw, 1.5rem);
+}
+
+.weather {
+    font-size: clamp(1rem, 4vw, 1.5rem); 
+    margin-top: 10px;
+}

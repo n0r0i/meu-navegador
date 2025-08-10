@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Nova Aba</title>
+
+    <style>
+html {
+    height: 100vh;
+    width: 100vw;
+    margin: 0;
+    padding: 0;
+    background: var(--bg-image, #202324) no-repeat center center / cover;
+    background-color: #202324;
+    transition: background-size 0.3s ease;
+}
+
+
+ body {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    color: #e8eaed;
+    font-family: system-ui, sans-serif;
+    text-shadow: 0px 0px 8px rgba(0, 0, 0, 0.6);
+    user-select: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: center; /* Centraliza verticalmente */
+    align-items: center;     /* Centraliza horizontalmente */
+    gap: 0.5rem; /* Espaço entre elementos */
+}
+
+#clock-container {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+#clock-time {
+    font-weight: bold;
+    font-size: clamp(4rem, 15vw, 8rem);
+}
+
+#clock-seconds {
+    font-size: clamp(1rem, 5vw, 2rem);
+    font-weight: bold;
+}
+
+#date-container {
+    font-size: clamp(1rem, 4vw, 1.5rem);
+    text-align: center;
+}
+
+#weather-container {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    font-size: clamp(1rem, 4vw, 1.5rem);
+}
+
+#search-input {
+    width: clamp(200px, 40%, 500px);
+    padding: 15px;
+    font-size: 1rem;
+    border-radius: 30px;
+    border: none;
+    background-color: rgba(255, 255, 255, 0.9);
+    color: #000;
+}
+
+        /* --- ESTILOS DOS ELEMENTOS --- */
+
+        #search-input {
+            width: 40%; 
+            max-width: 500px;
+            padding: 15px; 
+            font-size: 1rem; 
+            border-radius: 30px; 
+            border: none;
+            background-color: rgba(255, 255, 255, 0.9);
+            color: #000;
+        }
+
+        #clock-time {
+    font-weight: bold;
+    font-size: clamp(4rem, 15vw, 8rem);
+        }
+
+        #clock-seconds {
+    font-size: clamp(1rem, 5vw, 2rem);
+    font-weight: bold;
+        }
+
+        #date-container {
+            font-size: clamp(1rem, 4vw, 1.5rem);
+        }
+
+        .weather {
+            font-size: clamp(1rem, 4vw, 1.5rem); 
+        }
+    </style>
+</head>
+<body>
+    <input type="text" id="search-input" class="widget" placeholder="Pesquisar">
+    
+    <div id="clock-container" class="widget">
+        <span id="clock-time">00:00</span>
+        <span id="clock-seconds">00</span> </div>
+    
+    <div id="date-container" class="widget">Carregando data...</div>
+    
+    <div id="weather-container" class="widget weather">Carregando clima...</div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // O JavaScript não precisa de nenhuma alteração, pois agora
+            // ele encontrará todos os elementos que precisa no HTML.
+
+            const params = new URLSearchParams(window.location.search);
+            const bgPath = params.get('bg');
+            if (bgPath) {
+                const imageUrl = bgPath.replaceAll('\\', '/');
+                document.documentElement.style.setProperty('--bg-image', `url('${imageUrl}')`);
+            }
+
+            function updateClock() {
+                const now = new Date();
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                const seconds = String(now.getSeconds()).padStart(2, '0');
+                document.getElementById('clock-time').textContent = `${hours}:${minutes}`;
+                document.getElementById('clock-seconds').textContent = seconds; // Isso vai funcionar agora
+                const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                document.getElementById('date-container').textContent = now.toLocaleDateString('pt-BR', dateOptions); // E isso também
+            }
+            setInterval(updateClock, 1000);
+            updateClock();
+
+            const searchInput = document.getElementById('search-input');
+            searchInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    const query = searchInput.value.trim();
+                    if (query) {
+                        const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+                        window.electronViewAPI.navigateTo(searchUrl);
+                    }
+                }
+            });
+
+            document.getElementById('weather-container').textContent = 'São Paulo: 18°C 🌦️';
+        });
+    </script>
+</body>
+</html>

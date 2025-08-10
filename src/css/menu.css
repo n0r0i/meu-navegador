@@ -1,0 +1,36 @@
+/* Estilos específicos para o menu.html */
+body, html {
+    background-color: transparent; /* Essencial para a janela não ter fundo branco */
+}
+
+.menu-dropdown {
+    background-color: var(--cor-fundo-secundaria);
+    border: 1px solid var(--cor-borda);
+    border-radius: 6px;
+    padding: 5px;
+    width: 220px; /* Um pouco mais largo */
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2); /* Sombra para dar profundidade */
+}
+
+.menu-item {
+    padding: 10px 15px; /* Mais espaçamento */
+    color: var(--cor-texto-principal);
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 14px;
+    display: flex; /* Para alinhar o ícone e o texto */
+    align-items: center;
+    gap: 10px; /* Espaço entre o ícone e o texto */
+}
+
+.menu-item:hover {
+    background-color: var(--cor-destaque);
+    color: var(--cor-fundo-principal);
+}
+
+.menu-separator {
+    height: 1px;
+    background-color: var(--cor-borda);
+    border: none;
+    margin: 5px 0;
+}

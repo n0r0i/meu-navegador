@@ -1,0 +1,21 @@
+{
+  "name": "meu-navegador",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:adblocker": "node build-adblocker.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^37.2.6"
+  },
+  "dependencies": {
+    "@ghostery/adblocker-electron": "^2.11.3",
+    "cross-fetch": "^4.1.0",
+    "electron-store": "^7.0.3"
+  }
+}
