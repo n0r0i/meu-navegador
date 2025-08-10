@@ -5,58 +5,56 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { ElectronBlocker } = require('@ghostery/adblocker-electron');
 const { execFile } = require('child_process');
-const settingsPath = path.join(app.getPath('userData'), 'settings.json');
-const nodeURL = require('node:url');// ✅ ADICIONE ESTA LINHA
 const Store = require('electron-store');
-const store = new Store();
-
 
 // --- Variáveis Globais ---
+const store = new Store();
 let win;
 const views = new Map();
 let activeTabId = null;
 const UI_HEIGHT = 73;
 let isTorEnabled = false;
-let sessionHistory = [];
+let sessionHistory = store.get('history', []);
 let libraryWin = null;
+let settingsWin = null;
 let isAdBlockerEnabled = true;
 let torProcess = null;
 let blocker;
 let popupWindow = null;
 let defaultSession;
 let torSession;
-let settingsWin = null;
 let bookmarks = store.get('bookmarks', []);
 
 // --- Funções Auxiliares ---
 function updateBounds() { if (!win || win.isDestroyed()) return; const { width, height } = win.getContentBounds(); const activeView = views.get(activeTabId); if (activeView) { activeView.setBounds({ x: 0, y: UI_HEIGHT, width: width, height: height - UI_HEIGHT }); } }
 function setActiveTab(id) { if (!views.has(id)) return; activeTabId = id; const view = views.get(id); win.setTopBrowserView(view); updateBounds(); }
-function addToHistory(view) { const url = view.webContents.getURL(); const title = view.webContents.getTitle(); if (!url.startsWith('file://') && title && (sessionHistory.length === 0 || sessionHistory[sessionHistory.length - 1].url !== url)) { sessionHistory.push({ url, title, timestamp: `${Date.now()}` }); } }
-function enableBlocker(blockerInstance, sessionToEnable) { try { blockerInstance.enableBlockingInSession(sessionToEnable); } catch (error) { if (!error.message.includes('Attempted to register a second handler')) { console.error('Erro inesperado ao ativar o bloqueador:', error); throw error; } } }
-function startTorProcess() { try { const torPath = path.join(app.getAppPath(), 'tor', process.platform === 'win32' ? 'tor.exe' : 'tor'); torProcess = execFile(torPath); console.log('Processo Tor iniciado.'); } catch (error) { console.error('Falha ao iniciar o Tor. Verifique o caminho e as permissões.', error); } }
-async function configureTorSession() { try { await torSession.setProxy({ proxyRules: 'socks5://127.0.0.1:9050' }); console.log('Sessão Tor configurada com proxy.'); } catch (error) { console.error('Erro ao configurar a sessão Tor:', error); } }
-function readSettings() {
-    try {
-        return JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-    } catch (error) {
-        return {}; // Retorna objeto vazio se o arquivo não existir ou for inválido
-    }
-}
-// Dentro de main.js
+function addToHistory(view) { const url = view.webContents.getURL(); const title = view.webContents.getTitle(); if (!url.startsWith('file://') && title && (sessionHistory.length === 0 || sessionHistory[sessionHistory.length - 1].url !== url)) { sessionHistory.unshift({ url, title, timestamp: Date.now() }); store.set('history', sessionHistory); } }
+function enableBlocker(blockerInstance, sessionToEnable) { try { blockerInstance.enableBlockingInSession(sessionToEnable); } catch (error) { if (!error.message.includes('Attempted to register a second handler')) { console.error('Erro ao ativar o bloqueador:', error); throw error; } } }
+function startTorProcess() { try { const torPath = path.join(app.getAppPath(), 'tor', process.platform === 'win32' ? 'tor.exe' : 'tor'); torProcess = execFile(torPath); } catch (error) { console.error('Falha ao iniciar o Tor.', error); } }
+async function configureTorSession() { try { await torSession.setProxy({ proxyRules: 'socks5://127.0.0.1:9050' }); } catch (error) { console.error('Erro ao configurar a sessão Tor:', error); } }
 
-function createMenuWindow(parentWebContents) {
-    // ... (o seu código que cria a menuWindow)
-    const menuWindow = new BrowserWindow({
-        // ... (as suas opções: x, y, width, height, etc.)
-    });
-
-    menuWindow.loadFile(path.join(__dirname, 'src/menu.html'));
+// --- Bloco Principal de Inicialização ---
+app.whenReady().then(async () => {
+    defaultSession = session.fromPartition('persist:default');
+    torSession = session.fromPartition('persist:tor');
+    startTorProcess();
+    await configureTorSession();
+    const enginePath = path.join(__dirname, 'adblocker-engine.bin');
+    if (fs.existsSync(enginePath)) { try { blocker = ElectronBlocker.deserialize(fs.readFileSync(enginePath)); enableBlocker(blocker, defaultSession); enableBlocker(blocker, torSession); } catch (error) { blocker = null; } } else { isAdBlockerEnabled = false; }
+    
+    win = new BrowserWindow({ backgroundColor: '#202324', width: 1200, height: 800, webPreferences: { preload: path.join(__dirname, 'preload.js') } });
+    win.webContents.on('did-finish-load', () => { win.webContents.send('adblocker-status-changed', isAdBlockerEnabled); win.webContents.send('tor-status-changed', isTorEnabled); });
+    win.removeMenu();
+    win.loadFile('src/index.html');
+    win.on('resize', updateBounds);
+});
+   
 
     // ✅ ADICIONE ESTA LINHA TEMPORARIAMENTE PARA DEPURAÇÃO
     menuWindow.webContents.openDevTools({ mode: 'detach' });
 
     // ... (o resto da função)
-}
+
 // --- Bloco Principal de Inicialização ---
 app.whenReady().then(async () => {
     defaultSession = session.fromPartition('persist:default');
@@ -78,6 +76,7 @@ app.whenReady().then(async () => {
 app.on('will-quit', () => { torProcess?.kill(); });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
+// --- Listeners de Eventos IPC ---
 // main.js -> Substitua esta função inteira
 
 ipcMain.on('create-tab', (event, id, url) => { // O parâmetro aqui pode continuar se chamando 'url'
@@ -197,56 +196,54 @@ ipcMain.on('remove-bookmark', (event, url) => {
 
 // ✅ BLOCO 2 A SER ADICIONADO
 // Listener para abrir um link da biblioteca numa nova aba na janela principal
+// Lógica para abrir link da biblioteca em nova aba
 ipcMain.on('open-link-in-new-tab', (event, url) => {
-    // Encontra a janela principal
-    const mainWindow = BrowserWindow.getAllWindows().find(win => !win.getParentWindow());
-    if (mainWindow) {
-        // Envia uma mensagem para o renderer da janela principal para criar a aba
-        mainWindow.webContents.send('create-new-tab-from-library', url);
-        mainWindow.focus(); // Traz a janela principal para a frente
+    if (win) {
+        win.webContents.send('create-new-tab-from-library', url);
+        win.focus();
     }
 });
 
-// Dentro de main.js
+// ✅ LÓGICA CORRETA E FINAL PARA O MENU
+// 1. Ouve o sinal do botão de engrenagem para ABRIR o menu
+ipcMain.on('open-main-menu', (event) => {
+    const [winX, winY] = win.getPosition();
+    const menuWidth = 240;
+    const menuHeight = 200;
 
-// ✅ ADICIONE ESTE BLOCO DE CÓDIGO
-// Listener para as ações vindas do menu dropdown
-// DENTRO DE main.js
+    const menuWindow = new BrowserWindow({
+        x: winX + 700, y: winY + 60, // Ajuste a posição X e Y conforme necessário
+        width: menuWidth, height: menuHeight,
+        frame: false, transparent: true, alwaysOnTop: true, resizable: false, show: false,
+        webPreferences: { preload: path.join(__dirname, 'preload-popup.js') }
+    });
+    menuWindow.loadFile(path.join(__dirname, 'src/menu.html'));
+    menuWindow.once('ready-to-show', () => menuWindow.show());
+    menuWindow.on('blur', () => { if (!menuWindow.isDestroyed()) menuWindow.close(); });
+});
 
-// ESTE BLOCO PROCESSA OS CLIQUES DENTRO DO MENU
+// 2. Ouve os cliques DENTRO do menu e executa a ação correspondente
 ipcMain.on('menu-action', (event, action) => {
-    console.log(`MAIN.JS: Ação "${action}" recebida do menu!`);
-
     const menuWindow = BrowserWindow.fromWebContents(event.sender);
     if (menuWindow) menuWindow.close();
 
-    const mainWindow = win; // Nossa janela principal
-
     switch (action) {
         case 'library':
-            // Você já tem uma lógica para abrir a biblioteca, vamos adaptá-la
-            if (libraryWin && !libraryWin.isDestroyed()) {
-                libraryWin.focus();
-                return;
-            }
+            if (libraryWin && !libraryWin.isDestroyed()) { libraryWin.focus(); return; }
             libraryWin = new BrowserWindow({ width: 800, height: 600, parent: win, webPreferences: { preload: path.join(__dirname, 'preload.js') } });
             libraryWin.removeMenu();
             libraryWin.loadFile('src/library.html');
             libraryWin.on('closed', () => { libraryWin = null; });
             break;
         case 'settings':
-            // E também para as configurações
-            if (settingsWin && !settingsWin.isDestroyed()) {
-                settingsWin.focus();
-                return;
-            }
+            if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.focus(); return; }
             settingsWin = new BrowserWindow({ width: 600, height: 400, parent: win, webPreferences: { preload: path.join(__dirname, 'preload-settings.js') } });
             settingsWin.removeMenu();
             settingsWin.loadFile('src/settings.html');
             settingsWin.on('closed', () => { settingsWin = null; });
             break;
         case 'devtools':
-            if (mainWindow) mainWindow.webContents.toggleDevTools();
+            if (win) win.webContents.toggleDevTools();
             break;
         case 'exit':
             app.quit();

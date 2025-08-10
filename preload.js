@@ -54,4 +54,7 @@ onBookmarkUpdated: (callback) => ipcRenderer.on('bookmark-updated', (_event, dat
     addBookmark: (bookmark) => ipcRenderer.send('add-bookmark', bookmark),
     isBookmarked: (url) => ipcRenderer.invoke('is-bookmarked', url),
     onBookmarkUpdated: (callback) => ipcRenderer.on('bookmark-updated', (_event, data) => callback(data)),
+    onCreateNewTabFromLibrary: (callback) => ipcRenderer.on('create-new-tab-from-library', (_event, url) => callback(url)),
+    
+openMainMenu: () => ipcRenderer.send('open-main-menu'),
 });
