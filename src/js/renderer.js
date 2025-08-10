@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Seleção de todos os elementos da interface
+    // 1. Seleção de Elementos
     const tabsContainer = document.getElementById('tabs-container');
     const newTabBtn = document.getElementById('new-tab-btn');
     const backBtn = document.getElementById('back-btn');
@@ -11,11 +11,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const addBookmarkBtn = document.getElementById('add-bookmark-btn');
     const settingsBtn = document.getElementById('settings-btn');
 
-    // 2. Variáveis de estado
+    // 2. Estado
     let tabs = new Map();
     let activeTabId = null;
 
-    // 3. Funções de Gestão das Abas
+    // 3. Funções de Gestão de Abas
     function createNewTab(url = null, makeActive = true) {
         const tabId = `tab-${Date.now()}`;
         const tabElement = document.createElement('div');
@@ -27,9 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tabs.set(tabId, { element: tabElement, url: url, title: 'Nova Aba' });
         window.electronAPI.createTab(tabId, url);
 
-        if (makeActive) {
-            setActiveTab(tabId);
-        }
+        if (makeActive) setActiveTab(tabId);
 
         tabElement.addEventListener('click', () => setActiveTab(tabId));
         tabElement.querySelector('.close-tab-btn').addEventListener('click', (e) => {
@@ -59,20 +57,18 @@ document.addEventListener('DOMContentLoaded', () => {
         window.electronAPI.closeTab(tabId);
         if (activeTabId === tabId) {
             const lastTabId = Array.from(tabs.keys()).pop();
-            if (!lastTabId) {
-                createNewTab();
-            } else {
-                setActiveTab(lastTabId);
-            }
+            lastTabId ? setActiveTab(lastTabId) : createNewTab();
         }
     }
 
-    // 4. Listeners dos Botões da Interface
+    // 4. Listeners dos Botões
     newTabBtn.addEventListener('click', () => createNewTab());
     backBtn.addEventListener('click', () => window.electronAPI.goBack());
     forwardBtn.addEventListener('click', () => window.electronAPI.goForward());
     reloadBtn.addEventListener('click', () => window.electronAPI.reload());
     settingsBtn.addEventListener('click', () => window.electronAPI.openMainMenu());
+    torToggleBtn.addEventListener('click', () => window.electronAPI.toggleTor());
+    adblockToggleBtn.addEventListener('click', () => window.electronAPI.toggleAdBlocker());
 
     addBookmarkBtn.addEventListener('click', () => {
         const activeTab = tabs.get(activeTabId);
@@ -92,29 +88,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    torToggleBtn.addEventListener('click', () => window.electronAPI.toggleTor());
-    adblockToggleBtn.addEventListener('click', () => window.electronAPI.toggleAdBlocker());
-
-    // 5. Listeners de Eventos vindos do Main.js
+    // 5. Listeners de Eventos do Main Process
     window.electronAPI.onTabUpdated(async ({ id, title, url, canGoBack, canGoForward }) => {
         const tab = tabs.get(id);
-        if (tab) {
-            tab.url = url;
-            tab.title = title;
-            tab.element.querySelector('.tab-title').textContent = title || 'Carregando...';
-            tab.element.querySelector('.tab-icon').src = url.startsWith('file://') ? 'icon.png' : `https://www.google.com/s2/favicons?sz=16&domain_url=${url}`;
+        if (!tab) return;
+        
+        tab.url = url;
+        tab.title = title;
+        tab.element.querySelector('.tab-title').textContent = title || 'Carregando...';
+        tab.element.querySelector('.tab-icon').src = url.startsWith('file://') ? 'icon.png' : `https://www.google.com/s2/favicons?sz=16&domain_url=${url}`;
+        
+        if (id === activeTabId) {
+            urlInput.value = url.startsWith('file://') ? '' : url;
+            backBtn.disabled = !canGoBack;
+            forwardBtn.disabled = !canGoForward;
             
-            if (id === activeTabId) {
-                urlInput.value = url.startsWith('file://') ? '' : url;
-                backBtn.disabled = !canGoBack;
-                forwardBtn.disabled = !canGoForward;
-                
-                if (!url.startsWith('file://')) {
-                    const isBookmarked = await window.electronAPI.isBookmarked(url);
-                    addBookmarkBtn.style.color = isBookmarked ? '#8ab4f8' : '';
-                } else {
-                    addBookmarkBtn.style.color = '';
-                }
+            if (!url.startsWith('file://')) {
+                const isBookmarked = await window.electronAPI.isBookmarked(url);
+                addBookmarkBtn.style.color = isBookmarked ? '#8ab4f8' : '#fff';
+            } else {
+                addBookmarkBtn.style.color = '#fff';
             }
         }
     });
@@ -123,20 +116,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.electronAPI.onBookmarkUpdated(async () => {
         const activeTab = tabs.get(activeTabId);
-        if (activeTab) {
+        if (activeTab && !activeTab.url.startsWith('file://')) {
             const isBookmarked = await window.electronAPI.isBookmarked(activeTab.url);
-            addBookmarkBtn.style.color = isBookmarked ? '#8ab4f8' : '';
+            addBookmarkBtn.style.color = isBookmarked ? '#8ab4f8' : '#fff';
         }
     });
 
     window.electronAPI.onTorStatusChanged((isEnabled) => {
-        torToggleBtn.style.color = isEnabled ? '#8ab4f8' : '';
+        torToggleBtn.style.color = isEnabled ? '#8ab4f8' : '#fff';
     });
 
     window.electronAPI.onAdBlockerStatusChanged((isEnabled) => {
-        adblockToggleBtn.style.color = isEnabled ? '#8ab4f8' : '';
+        adblockToggleBtn.style.color = isEnabled ? '#8ab4f8' : '#fff';
     });
 
-    // 6. Inicia a primeira aba
+    // 6. Iniciar
     createNewTab();
 });

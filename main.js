@@ -1,13 +1,11 @@
-// main.js - VERSÃO FINAL CORRIGIDA E TESTADA
-
-const { app, BrowserWindow, ipcMain, BrowserView, session, dialog, Menu, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, BrowserView, session, dialog } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { ElectronBlocker } = require('@ghostery/adblocker-electron');
 const { execFile } = require('child_process');
 const Store = require('electron-store');
 
-// --- Variáveis Globais ---
+// Variáveis
 const store = new Store();
 let win;
 const views = new Map();
@@ -20,18 +18,13 @@ let settingsWin = null;
 let isAdBlockerEnabled = true;
 let torProcess = null;
 let blocker;
-let popupWindow = null;
 let defaultSession;
 let torSession;
 let bookmarks = store.get('bookmarks', []);
 
-// --- FUNÇÕES DE CRIAÇÃO DE JANELAS (LÓGICA CENTRALIZADA) ---
-
+// Funções de Janelas
 function createLibraryWindow() {
-    if (libraryWin && !libraryWin.isDestroyed()) {
-        libraryWin.focus();
-        return;
-    }
+    if (libraryWin && !libraryWin.isDestroyed()) { libraryWin.focus(); return; }
     libraryWin = new BrowserWindow({ width: 800, height: 600, parent: win, webPreferences: { preload: path.join(__dirname, 'preload.js') } });
     libraryWin.removeMenu();
     libraryWin.loadFile('src/library.html');
@@ -39,54 +32,71 @@ function createLibraryWindow() {
 }
 
 function createSettingsWindow() {
-    if (settingsWin && !settingsWin.isDestroyed()) {
-        settingsWin.focus();
-        return;
-    }
+    if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.focus(); return; }
     settingsWin = new BrowserWindow({ width: 600, height: 400, parent: win, webPreferences: { preload: path.join(__dirname, 'preload-settings.js') } });
     settingsWin.removeMenu();
     settingsWin.loadFile('src/settings.html');
     settingsWin.on('closed', () => { settingsWin = null; });
 }
 
-// --- Funções Auxiliares (sem alterações) ---
-function updateBounds() { if (!win || win.isDestroyed()) return; const { width, height } = win.getContentBounds(); const activeView = views.get(activeTabId); if (activeView) { activeView.setBounds({ x: 0, y: UI_HEIGHT, width: width, height: height - UI_HEIGHT }); } }
+// Funções Auxiliares
+function updateBounds() { if (!win || win.isDestroyed()) return; const { width, height } = win.getContentBounds(); const activeView = views.get(activeTabId); if (activeView) activeView.setBounds({ x: 0, y: UI_HEIGHT, width, height: height - UI_HEIGHT }); }
 function setActiveTab(id) { if (!views.has(id)) return; activeTabId = id; const view = views.get(id); win.setTopBrowserView(view); updateBounds(); }
-function addToHistory(view) { const url = view.webContents.getURL(); const title = view.webContents.getTitle(); if (!url.startsWith('file://') && title && (sessionHistory.length === 0 || sessionHistory[sessionHistory.length - 1].url !== url)) { sessionHistory.unshift({ url, title, timestamp: Date.now() }); store.set('history', sessionHistory); } }
-function enableBlocker(blockerInstance, sessionToEnable) { try { blockerInstance.enableBlockingInSession(sessionToEnable); } catch (error) { if (!error.message.includes('Attempted to register a second handler')) { console.error('Erro ao ativar o bloqueador:', error); throw error; } } }
-function startTorProcess() { try { const torPath = path.join(app.getAppPath(), 'tor', process.platform === 'win32' ? 'tor.exe' : 'tor'); torProcess = execFile(torPath); } catch (error) { console.error('Falha ao iniciar o Tor.', error); } }
-async function configureTorSession() { try { await torSession.setProxy({ proxyRules: 'socks5://127.0.0.1:9050' }); } catch (error) { console.error('Erro ao configurar a sessão Tor:', error); } }
+function addToHistory(view) { const url = view.webContents.getURL(); const title = view.webContents.getTitle(); if (!url.startsWith('file://') && title && (sessionHistory.length === 0 || sessionHistory[0].url !== url)) { sessionHistory.unshift({ url, title, timestamp: Date.now() }); store.set('history', sessionHistory); } }
+function startTorProcess() { try { const torPath = path.join(app.getAppPath(), 'tor', process.platform === 'win32' ? 'tor.exe' : 'tor'); torProcess = execFile(torPath); } catch (e) { console.error('Falha ao iniciar Tor', e); } }
+async function configureTorSession() { try { await torSession.setProxy({ proxyRules: 'socks5://127.0.0.1:9050' }); } catch (e) { console.error('Erro ao configurar proxy Tor', e); } }
 
-// --- Bloco Principal de Inicialização ---
+function enableBlocker(sessionToEnable) {
+    if (blocker) {
+        blocker.enableBlockingInSession(sessionToEnable).catch(err => console.error('Erro ao ativar bloqueador', err));
+    }
+}
+function disableBlocker(sessionToEnable) {
+    if (blocker) {
+        blocker.disableBlockingInSession(sessionToEnable).catch(err => console.error('Erro ao desativar bloqueador', err));
+    }
+}
+
+// Início da Aplicação
 app.whenReady().then(async () => {
     defaultSession = session.fromPartition('persist:default');
     torSession = session.fromPartition('persist:tor');
     startTorProcess();
     await configureTorSession();
-    const enginePath = path.join(__dirname, 'adblocker-engine.bin');
-    if (fs.existsSync(enginePath)) { try { blocker = ElectronBlocker.deserialize(fs.readFileSync(enginePath)); enableBlocker(blocker, defaultSession); enableBlocker(blocker, torSession); } catch (error) { blocker = null; } } else { isAdBlockerEnabled = false; }
+    
+    try {
+        const enginePath = path.join(__dirname, 'adblocker-engine.bin');
+        if (fs.existsSync(enginePath)) {
+            blocker = ElectronBlocker.deserialize(fs.readFileSync(enginePath));
+            if (isAdBlockerEnabled) {
+                enableBlocker(defaultSession);
+                enableBlocker(torSession);
+            }
+        } else { isAdBlockerEnabled = false; }
+    } catch (e) { console.error('Falha ao carregar AdBlocker', e); isAdBlockerEnabled = false; }
     
     win = new BrowserWindow({ backgroundColor: '#202324', width: 1200, height: 800, webPreferences: { preload: path.join(__dirname, 'preload.js') } });
-    win.webContents.on('did-finish-load', () => { win.webContents.send('adblocker-status-changed', isAdBlockerEnabled); win.webContents.send('tor-status-changed', isTorEnabled); });
     win.removeMenu();
     win.loadFile('src/index.html');
     win.on('resize', updateBounds);
+    win.webContents.on('did-finish-load', () => {
+        win.webContents.send('adblocker-status-changed', isAdBlockerEnabled);
+        win.webContents.send('tor-status-changed', isTorEnabled);
+    });
 });
 
-app.on('will-quit', () => { torProcess?.kill(); });
+app.on('will-quit', () => torProcess?.kill());
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
-// --- Listeners de Eventos IPC ---
-
+// IPC Listeners
 ipcMain.on('create-tab', (event, id, url) => {
     const activeSession = isTorEnabled ? torSession : defaultSession;
     const view = new BrowserView({ backgroundColor: '#FFFFFF', webPreferences: { preload: path.join(__dirname, 'preload-view.js'), sandbox: false, session: activeSession } });
     win.addBrowserView(view);
     views.set(id, view);
-    const updateTabData = () => { if (win && !win.isDestroyed()) { win.webContents.send('tab-updated', { id, title: view.webContents.getTitle(), url: view.webContents.getURL(), canGoBack: view.webContents.canGoBack(), canGoForward: view.webContents.canGoForward() }); } };
-    view.webContents.on('page-title-updated', updateTabData);
-    view.webContents.on('did-navigate', () => { addToHistory(view); updateTabData(); });
-    view.webContents.on('did-finish-load', updateBounds);
+    const update = () => { if (!win.isDestroyed()) win.webContents.send('tab-updated', { id, title: view.webContents.getTitle(), url: view.webContents.getURL(), canGoBack: view.webContents.canGoBack(), canGoForward: view.webContents.canGoForward() }); };
+    view.webContents.on('page-title-updated', update);
+    view.webContents.on('did-navigate', () => { addToHistory(view); update(); });
     view.webContents.loadURL(url || 'file://' + path.join(__dirname, 'src/start.html'));
     setActiveTab(id);
 });
@@ -98,16 +108,18 @@ ipcMain.on('go-back', () => views.get(activeTabId)?.webContents.goBack());
 ipcMain.on('go-forward', () => views.get(activeTabId)?.webContents.goForward());
 ipcMain.on('reload', () => views.get(activeTabId)?.webContents.reload());
 
+ipcMain.on('toggle-tor', (event) => { isTorEnabled = !isTorEnabled; win.webContents.send('tor-status-changed', isTorEnabled); dialog.showMessageBox(win, { type: 'info', title: `Modo Anônimo`, message: `O Modo Anônimo (Tor) foi ${isTorEnabled ? 'ATIVADO' : 'DESATIVADO'}. Novas abas usarão a rede correspondente.` }); });
+ipcMain.on('toggle-adblocker', (event) => { isAdBlockerEnabled = !isAdBlockerEnabled; if(isAdBlockerEnabled) { enableBlocker(defaultSession); enableBlocker(torSession); } else { disableBlocker(defaultSession); disableBlocker(torSession); } win.webContents.send('adblocker-status-changed', isAdBlockerEnabled); });
+
 ipcMain.handle('get-history', () => store.get('history', []));
 ipcMain.on('clear-history', () => { sessionHistory = []; store.set('history', []); });
-ipcMain.on('add-bookmark', (event, bookmark) => { const existingIndex = bookmarks.findIndex(b => b.url === bookmark.url); if (existingIndex > -1) { bookmarks.splice(existingIndex, 1); } else { bookmarks.unshift(bookmark); } store.set('bookmarks', bookmarks); const senderWindow = BrowserWindow.fromWebContents(event.sender); if (senderWindow) senderWindow.webContents.send('bookmark-updated', { url: bookmark.url }); });
+ipcMain.on('add-bookmark', (event, bookmark) => { const existingIndex = bookmarks.findIndex(b => b.url === bookmark.url); if (existingIndex > -1) bookmarks.splice(existingIndex, 1); else bookmarks.unshift(bookmark); store.set('bookmarks', bookmarks); win.webContents.send('bookmark-updated', { url: bookmark.url }); });
 ipcMain.handle('is-bookmarked', (event, url) => bookmarks.some(b => b.url === url));
 ipcMain.handle('get-bookmarks', () => store.get('bookmarks', []));
 ipcMain.on('clear-bookmarks', () => { bookmarks = []; store.set('bookmarks', []); });
 ipcMain.on('remove-bookmark', (event, url) => { bookmarks = bookmarks.filter(b => b.url !== url); store.set('bookmarks', bookmarks); });
 ipcMain.on('open-link-in-new-tab', (event, url) => { if (win) { win.webContents.send('create-new-tab-from-library', url); win.focus(); } });
 
-// ✅ ESTA É A VERSÃO CORRETA E FINAL DA LÓGICA DO MENU
 ipcMain.on('open-main-menu', (event) => {
     const [winX, winY] = win.getPosition();
     const menuWindow = new BrowserWindow({ x: winX + 700, y: winY + 60, width: 240, height: 200, frame: false, transparent: true, alwaysOnTop: true, resizable: false, show: false, webPreferences: { preload: path.join(__dirname, 'preload-popup.js') } });
