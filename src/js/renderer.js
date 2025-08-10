@@ -1,4 +1,4 @@
-// renderer.js - VERSÃO CORRIGIDA
+// src/js/renderer.js - VERSÃO FINAL E CORRIGIDA
 
 document.addEventListener('DOMContentLoaded', () => {
     const tabsContainer = document.getElementById('tabs-container');
@@ -61,13 +61,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- Listeners dos Botões ---
     newTabBtn.addEventListener('click', () => createTab());
 
     backBtn.addEventListener('click', () => window.electronAPI.goBack());
     forwardBtn.addEventListener('click', () => window.electronAPI.goForward());
     reloadBtn.addEventListener('click', () => window.electronAPI.reload());
 
- // ✅ LÓGICA CORRIGIDA: Botão da engrenagem agora envia o sinal para abrir o menu
+    // ✅ CORREÇÃO: Chamando a função com o nome correto: openMainMenu
     settingsBtn.addEventListener('click', () => {
         window.electronAPI.openMainMenu();
     });
@@ -86,8 +87,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-// Listeners de atualização vindos do main.js
-    window.electronAPI.onTabUpdated(({ id, title, url, canGoBack, canGoForward }) => {
+    // --- Listeners de Atualizações (vindos do main.js) ---
+    window.electronAPI.onTabUpdated(async ({ id, title, url, canGoBack, canGoForward }) => {
         const tab = tabs.get(id);
         if (tab) {
             tab.url = url;
@@ -98,11 +99,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 urlInput.value = url;
                 backBtn.disabled = !canGoBack;
                 forwardBtn.disabled = !canGoForward;
+                // Atualiza a cor do botão de favoritos
+                const isBookmarked = await window.electronAPI.isBookmarked(url);
+                addBookmarkBtn.style.color = isBookmarked ? '#8ab4f8' : '';
             }
         }
     });
     
-    // Lógica de Favoritos
+    // --- Lógica de Favoritos ---
     addBookmarkBtn.addEventListener('click', () => {
         const activeTab = tabs.get(activeTabId);
         if (activeTab && activeTab.url && !activeTab.url.startsWith('file:')) {
@@ -118,7 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // ✅ Ouve o pedido da biblioteca para criar uma nova aba
+    // Ouve o pedido da biblioteca para criar uma nova aba
     window.electronAPI.onCreateNewTabFromLibrary((url) => {
         createTab(url, true);
     });
