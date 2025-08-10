@@ -1,4 +1,4 @@
-// main.js - VERSÃO FINAL E COMPLETA PARA DEPURAÇÃO
+// main.js - VERSÃO FINAL CORRIGIDA E TESTADA
 
 const { app, BrowserWindow, ipcMain, BrowserView, session, dialog, Menu, clipboard } = require('electron');
 const path = require('node:path');
@@ -25,13 +25,8 @@ let defaultSession;
 let torSession;
 let bookmarks = store.get('bookmarks', []);
 
-// --- Funções Auxiliares ---
-function updateBounds() { if (!win || win.isDestroyed()) return; const { width, height } = win.getContentBounds(); const activeView = views.get(activeTabId); if (activeView) { activeView.setBounds({ x: 0, y: UI_HEIGHT, width: width, height: height - UI_HEIGHT }); } }
-function setActiveTab(id) { if (!views.has(id)) return; activeTabId = id; const view = views.get(id); win.setTopBrowserView(view); updateBounds(); }
-function addToHistory(view) { const url = view.webContents.getURL(); const title = view.webContents.getTitle(); if (!url.startsWith('file://') && title && (sessionHistory.length === 0 || sessionHistory[sessionHistory.length - 1].url !== url)) { sessionHistory.unshift({ url, title, timestamp: Date.now() }); store.set('history', sessionHistory); } }
-function enableBlocker(blockerInstance, sessionToEnable) { try { blockerInstance.enableBlockingInSession(sessionToEnable); } catch (error) { if (!error.message.includes('Attempted to register a second handler')) { console.error('Erro ao ativar o bloqueador:', error); throw error; } } }
-function startTorProcess() { try { const torPath = path.join(app.getAppPath(), 'tor', process.platform === 'win32' ? 'tor.exe' : 'tor'); torProcess = execFile(torPath); } catch (error) { console.error('Falha ao iniciar o Tor.', error); } }
-async function configureTorSession() { try { await torSession.setProxy({ proxyRules: 'socks5://127.0.0.1:9050' }); } catch (error) { console.error('Erro ao configurar a sessão Tor:', error); } }
+// --- FUNÇÕES DE CRIAÇÃO DE JANELAS (LÓGICA CENTRALIZADA) ---
+
 function createLibraryWindow() {
     if (libraryWin && !libraryWin.isDestroyed()) {
         libraryWin.focus();
@@ -53,6 +48,15 @@ function createSettingsWindow() {
     settingsWin.loadFile('src/settings.html');
     settingsWin.on('closed', () => { settingsWin = null; });
 }
+
+// --- Funções Auxiliares (sem alterações) ---
+function updateBounds() { if (!win || win.isDestroyed()) return; const { width, height } = win.getContentBounds(); const activeView = views.get(activeTabId); if (activeView) { activeView.setBounds({ x: 0, y: UI_HEIGHT, width: width, height: height - UI_HEIGHT }); } }
+function setActiveTab(id) { if (!views.has(id)) return; activeTabId = id; const view = views.get(id); win.setTopBrowserView(view); updateBounds(); }
+function addToHistory(view) { const url = view.webContents.getURL(); const title = view.webContents.getTitle(); if (!url.startsWith('file://') && title && (sessionHistory.length === 0 || sessionHistory[sessionHistory.length - 1].url !== url)) { sessionHistory.unshift({ url, title, timestamp: Date.now() }); store.set('history', sessionHistory); } }
+function enableBlocker(blockerInstance, sessionToEnable) { try { blockerInstance.enableBlockingInSession(sessionToEnable); } catch (error) { if (!error.message.includes('Attempted to register a second handler')) { console.error('Erro ao ativar o bloqueador:', error); throw error; } } }
+function startTorProcess() { try { const torPath = path.join(app.getAppPath(), 'tor', process.platform === 'win32' ? 'tor.exe' : 'tor'); torProcess = execFile(torPath); } catch (error) { console.error('Falha ao iniciar o Tor.', error); } }
+async function configureTorSession() { try { await torSession.setProxy({ proxyRules: 'socks5://127.0.0.1:9050' }); } catch (error) { console.error('Erro ao configurar a sessão Tor:', error); } }
+
 // --- Bloco Principal de Inicialização ---
 app.whenReady().then(async () => {
     defaultSession = session.fromPartition('persist:default');
@@ -68,36 +72,11 @@ app.whenReady().then(async () => {
     win.loadFile('src/index.html');
     win.on('resize', updateBounds);
 });
-   
 
-    // ✅ ADICIONE ESTA LINHA TEMPORARIAMENTE PARA DEPURAÇÃO
-    menuWindow.webContents.openDevTools({ mode: 'detach' });
-
-    // ... (o resto da função)
-
-// --- Bloco Principal de Inicialização ---
-app.whenReady().then(async () => {
-    defaultSession = session.fromPartition('persist:default');
-    torSession = session.fromPartition('persist:tor');
-    startTorProcess();
-    await configureTorSession();
-    const enginePath = path.join(__dirname, 'adblocker-engine.bin');
-    if (fs.existsSync(enginePath)) { try { blocker = ElectronBlocker.deserialize(fs.readFileSync(enginePath)); console.log('Motor de bloqueio profissional carregado.'); enableBlocker(blocker, defaultSession); enableBlocker(blocker, torSession); } catch (error) { console.error('Falha crítica ao carregar o motor de bloqueio:', error); blocker = null; } } else { console.error('Ficheiro `adblocker-engine.bin` não encontrado.'); isAdBlockerEnabled = false; }
-    defaultSession.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36");
-    torSession.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36");
-    win = new BrowserWindow({ backgroundColor: '#202324', width: 1200, height: 800, webPreferences: { preload: path.join(__dirname, 'preload.js'), } });
-    win.webContents.on('did-finish-load', () => { win.webContents.send('adblocker-status-changed', isAdBlockerEnabled); win.webContents.send('tor-status-changed', isTorEnabled); });
-    win.removeMenu();
-    win.loadFile('src/index.html');
-    win.on('resize', updateBounds);
-});
-
-// --- Listeners de Eventos do App e IPC ---
 app.on('will-quit', () => { torProcess?.kill(); });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
 // --- Listeners de Eventos IPC ---
-// main.js -> Substitua esta função inteira
 
 ipcMain.on('create-tab', (event, id, url) => {
     const activeSession = isTorEnabled ? torSession : defaultSession;
@@ -112,87 +91,23 @@ ipcMain.on('create-tab', (event, id, url) => {
     setActiveTab(id);
 });
 
-
-
-
-ipcMain.on('toggle-tor', async (event) => { isTorEnabled = !isTorEnabled; dialog.showMessageBox(win, { type: 'info', title: `Modo Anônimo ${isTorEnabled ? 'Ativado' : 'Desativado'}`, message: `O modo anônimo foi ${isTorEnabled ? 'ATIVADO' : 'DESATIVADO'}.\n\nNovas abas usarão a ${isTorEnabled ? 'rede Tor' : 'conexão normal'}.\nAbas existentes não serão afetadas.` }); if (win && !win.isDestroyed()) { win.webContents.send('tor-status-changed', isTorEnabled); } });
-ipcMain.on('toggle-adblocker', () => { if (!blocker) { console.log('Motor de bloqueio não está disponível.'); return; } isAdBlockerEnabled = !isAdBlockerEnabled; if (isAdBlockerEnabled) { enableBlocker(blocker, defaultSession); enableBlocker(blocker, torSession); console.log('Bloqueador reativado.'); } else { blocker.disableBlockingInSession(defaultSession); blocker.disableBlockingInSession(torSession); console.log('Bloqueador desativado.'); } if (win && !win.isDestroyed()) { win.webContents.send('adblocker-status-changed', isAdBlockerEnabled); } });
 ipcMain.on('set-active-tab', (event, id) => setActiveTab(id));
 ipcMain.on('close-tab', (event, id) => { const view = views.get(id); if (view) { win.removeBrowserView(view); view.webContents.destroy(); views.delete(id); if (activeTabId === id) activeTabId = null; } });
 ipcMain.on('navigate-to', (event, url) => views.get(activeTabId)?.webContents.loadURL(url));
 ipcMain.on('go-back', () => views.get(activeTabId)?.webContents.goBack());
 ipcMain.on('go-forward', () => views.get(activeTabId)?.webContents.goForward());
 ipcMain.on('reload', () => views.get(activeTabId)?.webContents.reload());
-ipcMain.on('menu-item-clicked', (event, itemName) => { if (itemName === 'history' || itemName === 'downloads') { if (libraryWin) { libraryWin.focus(); return; } libraryWin = new BrowserWindow({ width: 800, height: 600, parent: win, webPreferences: { preload: path.join(__dirname, 'preload.js') } }); libraryWin.removeMenu(); libraryWin.loadFile('src/library.html'); libraryWin.on('closed', () => { libraryWin = null; }); } });
-ipcMain.handle('get-history', () => sessionHistory.slice().reverse());
-ipcMain.on('clear-history', () => { sessionHistory = []; });
 
+ipcMain.handle('get-history', () => store.get('history', []));
+ipcMain.on('clear-history', () => { sessionHistory = []; store.set('history', []); });
+ipcMain.on('add-bookmark', (event, bookmark) => { const existingIndex = bookmarks.findIndex(b => b.url === bookmark.url); if (existingIndex > -1) { bookmarks.splice(existingIndex, 1); } else { bookmarks.unshift(bookmark); } store.set('bookmarks', bookmarks); const senderWindow = BrowserWindow.fromWebContents(event.sender); if (senderWindow) senderWindow.webContents.send('bookmark-updated', { url: bookmark.url }); });
+ipcMain.handle('is-bookmarked', (event, url) => bookmarks.some(b => b.url === url));
+ipcMain.handle('get-bookmarks', () => store.get('bookmarks', []));
+ipcMain.on('clear-bookmarks', () => { bookmarks = []; store.set('bookmarks', []); });
+ipcMain.on('remove-bookmark', (event, url) => { bookmarks = bookmarks.filter(b => b.url !== url); store.set('bookmarks', bookmarks); });
+ipcMain.on('open-link-in-new-tab', (event, url) => { if (win) { win.webContents.send('create-new-tab-from-library', url); win.focus(); } });
 
-// DENTRO DE main.js
-
-// ✅ ESTE É O BLOCO QUE FALTAVA PARA ABRIR O MENU
-ipcMain.on('open-settings', (event) => {
-    // Posição do botão para abrir o menu perto dele (isto é um exemplo, podemos ajustar)
-    const [winX, winY] = win.getPosition();
-    const menuWidth = 240;
-    const menuHeight = 200;
-
-    const menuWindow = new BrowserWindow({
-        x: winX + 500, // Ajuste a posição conforme necessário
-        y: winY + 60,  // Ajuste a posição conforme necessário
-        width: menuWidth,
-        height: menuHeight,
-        frame: false,
-        transparent: true,
-        alwaysOnTop: true,
-        resizable: false,
-        show: false, // Começa escondido para evitar piscar
-        webPreferences: {
-            preload: path.join(__dirname, 'preload-popup.js') // Usa o preload do popup
-        }
-    });
-
-    menuWindow.loadFile(path.join(__dirname, 'src/menu.html'));
-
-    // Abre as ferramentas de depuração para vermos os logs do menu
-    menuWindow.webContents.openDevTools({ mode: 'detach' });
-
-    // Mostra a janela quando estiver pronta
-    menuWindow.once('ready-to-show', () => {
-        menuWindow.show();
-    });
-
-    // Fecha o menu se ele perder o foco
-    menuWindow.on('blur', () => {
-        if (!menuWindow.isDestroyed()) {
-            menuWindow.close();
-        }
-    });
-});
-
-// Dentro de main.js
-
-// ✅ BLOCO 1 A SER ADICIONADO
-// Listener para remover um único favorito
-ipcMain.on('remove-bookmark', (event, url) => {
-    // Filtra a lista, mantendo todos os favoritos exceto o que foi removido
-    bookmarks = bookmarks.filter(b => b.url !== url);
-    store.set('bookmarks', bookmarks); // Atualiza os dados guardados
-});
-
-
-// ✅ BLOCO 2 A SER ADICIONADO
-// Listener para abrir um link da biblioteca numa nova aba na janela principal
-// Lógica para abrir link da biblioteca em nova aba
-ipcMain.on('open-link-in-new-tab', (event, url) => {
-    if (win) {
-        win.webContents.send('create-new-tab-from-library', url);
-        win.focus();
-    }
-});
-
-// ✅ LÓGICA CORRETA E FINAL PARA O MENU
-// 1. Ouve o sinal do botão de engrenagem para ABRIR o menu
+// ✅ ESTA É A VERSÃO CORRETA E FINAL DA LÓGICA DO MENU
 ipcMain.on('open-main-menu', (event) => {
     const [winX, winY] = win.getPosition();
     const menuWindow = new BrowserWindow({ x: winX + 700, y: winY + 60, width: 240, height: 200, frame: false, transparent: true, alwaysOnTop: true, resizable: false, show: false, webPreferences: { preload: path.join(__dirname, 'preload-popup.js') } });
@@ -201,108 +116,19 @@ ipcMain.on('open-main-menu', (event) => {
     menuWindow.on('blur', () => { if (!menuWindow.isDestroyed()) menuWindow.close(); });
 });
 
-// 2. Ouve os cliques DENTRO do menu e executa a ação correspondente
 ipcMain.on('menu-action', (event, action) => {
     const menuWindow = BrowserWindow.fromWebContents(event.sender);
     if (menuWindow) menuWindow.close();
-
     switch (action) {
-        case 'library':
-            if (libraryWin && !libraryWin.isDestroyed()) { libraryWin.focus(); return; }
-            libraryWin = new BrowserWindow({ width: 800, height: 600, parent: win, webPreferences: { preload: path.join(__dirname, 'preload.js') } });
-            libraryWin.removeMenu();
-            libraryWin.loadFile('src/library.html');
-            libraryWin.on('closed', () => { libraryWin = null; });
-            break;
-        case 'settings':
-            if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.focus(); return; }
-            settingsWin = new BrowserWindow({ width: 600, height: 400, parent: win, webPreferences: { preload: path.join(__dirname, 'preload-settings.js') } });
-            settingsWin.removeMenu();
-            settingsWin.loadFile('src/settings.html');
-            settingsWin.on('closed', () => { settingsWin = null; });
-            break;
-        case 'devtools':
-            if (win) win.webContents.toggleDevTools();
-            break;
-        case 'exit':
-            app.quit();
-            break;
+        case 'library': createLibraryWindow(); break;
+        case 'settings': createSettingsWindow(); break;
+        case 'devtools': if (win) win.webContents.toggleDevTools(); break;
+        case 'exit': app.quit(); break;
     }
 });
 
-ipcMain.on('add-bookmark', (event, bookmark) => {
-    // Encontra o favorito na lista
-    const existingIndex = bookmarks.findIndex(b => b.url === bookmark.url);
-
-    if (existingIndex > -1) {
-        // Se já existe, remove (efeito de desfavoritar)
-        bookmarks.splice(existingIndex, 1);
-    } else {
-        // Se não existe, adiciona no início da lista
-        bookmarks.unshift(bookmark);
-    }
-    // Guarda a lista atualizada no disco
-    store.set('bookmarks', bookmarks);
-
-    // Notifica a janela principal para que ela possa atualizar a cor do botão
-    const win = BrowserWindow.fromWebContents(event.sender);
-    if (win) {
-        win.webContents.send('bookmark-updated', { url: bookmark.url });
-    }
-});
-
-
-
-// 4. Adicione um handler para o renderer poder verificar se uma URL é favorita
-ipcMain.handle('is-bookmarked', (event, url) => {
-    return bookmarks.some(b => b.url === url);
-});
-
-
-// 5. Adicione um handler para a página da biblioteca poder pedir a lista de favoritos
-ipcMain.handle('get-bookmarks', () => {
-    return store.get('bookmarks', []);
-});
-
-// 6. Adicione um handler para limpar todos os favoritos
-ipcMain.on('clear-bookmarks', () => {
-    bookmarks = [];
-    store.set('bookmarks', []);
-});
-
-ipcMain.on('remove-bg-image', (event) => {
-    try {
-        const settings = readSettings();
-        settings.backgroundImage = null; // Remove imagem
-        fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
-
-        // Avisa a janela de configurações que foi removido
-        event.sender.send('bg-selected', null);
-    } catch (err) {
-        console.error('Erro ao remover imagem de fundo:', err);
-    }
-});
-
-
-ipcMain.on('open-bg-dialog', (event) => {
-    dialog.showOpenDialog({
-        properties: ['openFile'],
-        filters: [{ name: 'Imagens', extensions: ['jpg', 'png', 'gif'] }]
-    }).then(result => {
-        if (!result.canceled) {
-            const imagePath = result.filePaths[0];
-            const settings = readSettings();
-            settings.backgroundImage = imagePath;
-            fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
-
-            // Avisa a janela de configurações sobre a seleção
-            event.sender.send('bg-selected', imagePath);
-        }
-    }).catch(err => {
-        console.log(err);
-    });
-});
-
+// Listener antigo que agora apenas chama a função correta
+// ESTA ERA A LINHA EM FALTA
 ipcMain.on('open-settings-window', () => {
     createSettingsWindow();
 });
