@@ -32,7 +32,27 @@ function addToHistory(view) { const url = view.webContents.getURL(); const title
 function enableBlocker(blockerInstance, sessionToEnable) { try { blockerInstance.enableBlockingInSession(sessionToEnable); } catch (error) { if (!error.message.includes('Attempted to register a second handler')) { console.error('Erro ao ativar o bloqueador:', error); throw error; } } }
 function startTorProcess() { try { const torPath = path.join(app.getAppPath(), 'tor', process.platform === 'win32' ? 'tor.exe' : 'tor'); torProcess = execFile(torPath); } catch (error) { console.error('Falha ao iniciar o Tor.', error); } }
 async function configureTorSession() { try { await torSession.setProxy({ proxyRules: 'socks5://127.0.0.1:9050' }); } catch (error) { console.error('Erro ao configurar a sessão Tor:', error); } }
+function createLibraryWindow() {
+    if (libraryWin && !libraryWin.isDestroyed()) {
+        libraryWin.focus();
+        return;
+    }
+    libraryWin = new BrowserWindow({ width: 800, height: 600, parent: win, webPreferences: { preload: path.join(__dirname, 'preload.js') } });
+    libraryWin.removeMenu();
+    libraryWin.loadFile('src/library.html');
+    libraryWin.on('closed', () => { libraryWin = null; });
+}
 
+function createSettingsWindow() {
+    if (settingsWin && !settingsWin.isDestroyed()) {
+        settingsWin.focus();
+        return;
+    }
+    settingsWin = new BrowserWindow({ width: 600, height: 400, parent: win, webPreferences: { preload: path.join(__dirname, 'preload-settings.js') } });
+    settingsWin.removeMenu();
+    settingsWin.loadFile('src/settings.html');
+    settingsWin.on('closed', () => { settingsWin = null; });
+}
 // --- Bloco Principal de Inicialização ---
 app.whenReady().then(async () => {
     defaultSession = session.fromPartition('persist:default');
@@ -79,49 +99,16 @@ app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(
 // --- Listeners de Eventos IPC ---
 // main.js -> Substitua esta função inteira
 
-ipcMain.on('create-tab', (event, id, url) => { // O parâmetro aqui pode continuar se chamando 'url'
+ipcMain.on('create-tab', (event, id, url) => {
     const activeSession = isTorEnabled ? torSession : defaultSession;
-
-const view = new BrowserView({
-    // ✅ A CORREÇÃO ESTÁ AQUI
-    backgroundColor: '#202324', 
-
-    webPreferences: {
-        preload: path.join(__dirname, 'preload-view.js'), 
-        sandbox: false, 
-        session: activeSession,
-    }
-});
-
+    const view = new BrowserView({ backgroundColor: '#FFFFFF', webPreferences: { preload: path.join(__dirname, 'preload-view.js'), sandbox: false, session: activeSession } });
     win.addBrowserView(view);
     views.set(id, view);
-    
-    // (O resto da configuração da view, como 'updateTabData', etc., continua igual)
-    const updateTabData = () => { if (win && !win.isDestroyed()) { win.webContents.send('tab-updated', { id, title: view.webContents.getTitle(), url: view.webContents.getURL(), canGoBack: view.webContents.navigationHistory.canGoBack(), canGoForward: view.webContents.navigationHistory.canGoForward() }); } };
+    const updateTabData = () => { if (win && !win.isDestroyed()) { win.webContents.send('tab-updated', { id, title: view.webContents.getTitle(), url: view.webContents.getURL(), canGoBack: view.webContents.canGoBack(), canGoForward: view.webContents.canGoForward() }); } };
     view.webContents.on('page-title-updated', updateTabData);
     view.webContents.on('did-navigate', () => { addToHistory(view); updateTabData(); });
     view.webContents.on('did-finish-load', updateBounds);
-
-    if (url) {
-        view.webContents.loadURL(url);
-    } else {
-        const settings = readSettings();
-        const cssPath = path.join(__dirname, 'src', 'css', 'start.css');
-        const jsPath = path.join(__dirname, 'src', 'js', 'start.js');
-
-        view.webContents.loadFile(
-            path.join(__dirname, 'src', 'start.html'),
-            { 
-                query: { 
-                    bg: settings ? settings.backgroundImage : null,
-                    // ✅ CORREÇÃO: Usando o nome 'nodeURL' sem conflito
-                    css: nodeURL.pathToFileURL(cssPath).href,
-                    js: nodeURL.pathToFileURL(jsPath).href
-                } 
-            }
-        );
-    }
-
+    view.webContents.loadURL(url || 'file://' + path.join(__dirname, 'src/start.html'));
     setActiveTab(id);
 });
 
@@ -208,15 +195,7 @@ ipcMain.on('open-link-in-new-tab', (event, url) => {
 // 1. Ouve o sinal do botão de engrenagem para ABRIR o menu
 ipcMain.on('open-main-menu', (event) => {
     const [winX, winY] = win.getPosition();
-    const menuWidth = 240;
-    const menuHeight = 200;
-
-    const menuWindow = new BrowserWindow({
-        x: winX + 700, y: winY + 60, // Ajuste a posição X e Y conforme necessário
-        width: menuWidth, height: menuHeight,
-        frame: false, transparent: true, alwaysOnTop: true, resizable: false, show: false,
-        webPreferences: { preload: path.join(__dirname, 'preload-popup.js') }
-    });
+    const menuWindow = new BrowserWindow({ x: winX + 700, y: winY + 60, width: 240, height: 200, frame: false, transparent: true, alwaysOnTop: true, resizable: false, show: false, webPreferences: { preload: path.join(__dirname, 'preload-popup.js') } });
     menuWindow.loadFile(path.join(__dirname, 'src/menu.html'));
     menuWindow.once('ready-to-show', () => menuWindow.show());
     menuWindow.on('blur', () => { if (!menuWindow.isDestroyed()) menuWindow.close(); });
@@ -325,22 +304,7 @@ ipcMain.on('open-bg-dialog', (event) => {
 });
 
 ipcMain.on('open-settings-window', () => {
-    if (settingsWin) {
-        settingsWin.focus();
-        return;
-    }
-    settingsWin = new BrowserWindow({
-        width: 600, height: 400,
-        parent: win,
-        autoHideMenuBar: true,
-        webPreferences: {
-            // Vamos criar um preload para as configurações também
-            preload: path.join(__dirname, 'preload-settings.js'),
-            sandbox: false // Necessário se você usar APIs do Node no preload
-        }
-    });
-    settingsWin.loadFile('src/settings.html');
-    settingsWin.on('closed', () => { settingsWin = null; });
+    createSettingsWindow();
 });
 
 ipcMain.on('navigate-current-tab', (event, url) => {
