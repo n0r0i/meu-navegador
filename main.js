@@ -1,4 +1,4 @@
-// main.js - VERSÃO FINAL COM AVISOS CORRIGIDOS
+// main.js - VERSÃO FINAL E LIMPA
 
 const { app, BrowserWindow, ipcMain, BrowserView, session, dialog } = require('electron');
 const path = require('node:path');
@@ -7,7 +7,7 @@ const { ElectronBlocker } = require('@ghostery/adblocker-electron');
 const { execFile } = require('child_process');
 const Store = require('electron-store');
 
-// Variáveis
+// --- Variáveis Globais ---
 const store = new Store();
 let win;
 const views = new Map();
@@ -17,14 +17,14 @@ let isTorEnabled = false;
 let sessionHistory = store.get('history', []);
 let libraryWin = null;
 let settingsWin = null;
+let isAdBlockerEnabled = store.get('adblocker_is_enabled', true);
 let torProcess = null;
 let blocker;
 let defaultSession;
 let torSession;
 let bookmarks = store.get('bookmarks', []);
-let isAdBlockerEnabled = store.get('adblocker_is_enabled', true); 
 
-// Funções de Janelas
+// --- Funções de Criação de Janelas ---
 function createLibraryWindow() {
     if (libraryWin && !libraryWin.isDestroyed()) { libraryWin.focus(); return; }
     libraryWin = new BrowserWindow({ width: 800, height: 600, parent: win, webPreferences: { preload: path.join(__dirname, 'preload.js') } });
@@ -41,7 +41,7 @@ function createSettingsWindow() {
     settingsWin.on('closed', () => { settingsWin = null; });
 }
 
-// Funções Auxiliares
+// --- Funções Auxiliares ---
 function updateBounds() { if (!win || win.isDestroyed()) return; const { width, height } = win.getContentBounds(); const activeView = views.get(activeTabId); if (activeView) activeView.setBounds({ x: 0, y: UI_HEIGHT, width, height: height - UI_HEIGHT }); }
 function setActiveTab(id) { if (!views.has(id)) return; activeTabId = id; const view = views.get(id); win.setTopBrowserView(view); updateBounds(); }
 function addToHistory(view) { const url = view.webContents.getURL(); const title = view.webContents.getTitle(); if (!url.startsWith('file://') && title && (sessionHistory.length === 0 || sessionHistory[0].url !== url)) { sessionHistory.unshift({ url, title, timestamp: Date.now() }); store.set('history', sessionHistory); } }
@@ -61,55 +61,45 @@ function disableBlocker(sessionToDisable) {
     }
 }
 
-// Início da Aplicação
+// --- Início da Aplicação ---
 app.whenReady().then(async () => {
     defaultSession = session.fromPartition('persist:default');
     torSession = session.fromPartition('persist:tor');
     startTorProcess();
     await configureTorSession();
     
-try {
+    try {
         const enginePath = path.join(__dirname, 'adblocker-engine.bin');
         if (fs.existsSync(enginePath)) {
             blocker = ElectronBlocker.deserialize(fs.readFileSync(enginePath));
-            // ✅ SÓ ATIVA O BLOQUEADOR SE A OPÇÃO ESTIVER GUARDADA COMO ATIVA
             if (isAdBlockerEnabled) {
                 enableBlocker(defaultSession);
                 enableBlocker(torSession);
             }
-        } else { 
-            console.log('Ficheiro adblocker-engine.bin não encontrado. O AdBlocker está desativado.');
-            isAdBlockerEnabled = false; 
-        }
-    } catch (e) { 
-        console.error('Falha ao carregar AdBlocker', e); 
-        isAdBlockerEnabled = false; 
-    }
+        } else { isAdBlockerEnabled = false; }
+    } catch (e) { console.error('Falha ao carregar AdBlocker', e); isAdBlockerEnabled = false; }
     
     win = new BrowserWindow({ backgroundColor: '#202324', width: 1200, height: 800, webPreferences: { preload: path.join(__dirname, 'preload.js') } });
     win.removeMenu();
     win.loadFile('src/index.html');
     win.on('resize', updateBounds);
     win.webContents.on('did-finish-load', () => {
-        // Envia o estado inicial dos botões para a interface
         win.webContents.send('adblocker-status-changed', isAdBlockerEnabled);
         win.webContents.send('tor-status-changed', isTorEnabled);
     });
+});
 
 app.on('will-quit', () => torProcess?.kill());
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
-app.on('will-quit', () => torProcess?.kill());
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+// --- Listeners de Eventos IPC ---
 
-// IPC Listeners
 ipcMain.on('create-tab', (event, id, url) => {
     const activeSession = isTorEnabled ? torSession : defaultSession;
     const view = new BrowserView({ backgroundColor: '#FFFFFF', webPreferences: { preload: path.join(__dirname, 'preload-view.js'), sandbox: false, session: activeSession } });
     win.addBrowserView(view);
     views.set(id, view);
     
-    // ✅ CORREÇÃO DOS AVISOS DE DEPRECATION
     const update = () => {
         if (!win.isDestroyed()) {
             win.webContents.send('tab-updated', {
@@ -134,23 +124,16 @@ ipcMain.on('navigate-to', (event, url) => views.get(activeTabId)?.webContents.lo
 ipcMain.on('go-back', () => views.get(activeTabId)?.webContents.goBack());
 ipcMain.on('go-forward', () => views.get(activeTabId)?.webContents.goForward());
 ipcMain.on('reload', () => views.get(activeTabId)?.webContents.reload());
-
 ipcMain.on('toggle-tor', () => { isTorEnabled = !isTorEnabled; win.webContents.send('tor-status-changed', isTorEnabled); dialog.showMessageBox(win, { type: 'info', title: `Modo Anônimo`, message: `O Modo Anônimo (Tor) foi ${isTorEnabled ? 'ATIVADO' : 'DESATIVADO'}. Novas abas usarão a rede correspondente.` }); });
+
 ipcMain.on('toggle-adblocker', () => {
     if (!blocker) { console.error('AdBlocker não está disponível.'); return; }
     isAdBlockerEnabled = !isAdBlockerEnabled;
-    // Guarda a nova preferência do utilizador
     store.set('adblocker_is_enabled', isAdBlockerEnabled);
-    
-    if (isAdBlockerEnabled) { 
-        enableBlocker(defaultSession); 
-        enableBlocker(torSession); 
-    } else { 
-        disableBlocker(defaultSession); 
-        disableBlocker(torSession); 
-    } 
-    win.webContents.send('adblocker-status-changed', isAdBlockerEnabled); 
+    if(isAdBlockerEnabled) { enableBlocker(defaultSession); enableBlocker(torSession); } else { disableBlocker(defaultSession); disableBlocker(torSession); }
+    win.webContents.send('adblocker-status-changed', isAdBlockerEnabled);
 });
+
 ipcMain.handle('get-history', () => store.get('history', []));
 ipcMain.on('clear-history', () => { sessionHistory = []; store.set('history', []); });
 ipcMain.on('add-bookmark', (event, bookmark) => { const existingIndex = bookmarks.findIndex(b => b.url === bookmark.url); if (existingIndex > -1) bookmarks.splice(existingIndex, 1); else bookmarks.unshift(bookmark); store.set('bookmarks', bookmarks); win.webContents.send('bookmark-updated', { url: bookmark.url }); });
@@ -178,7 +161,6 @@ ipcMain.on('menu-action', (event, action) => {
         case 'exit': app.quit(); break;
     }
 });
-
 // Listener antigo que agora apenas chama a função correta
 // ESTA ERA A LINHA EM FALTA
 ipcMain.on('open-settings-window', () => {
