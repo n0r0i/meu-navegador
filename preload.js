@@ -1,3 +1,5 @@
+// preload.js - VERSÃO COMPLETA E CORRIGIDA
+
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -19,11 +21,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     isBookmarked: (url) => ipcRenderer.invoke('is-bookmarked', url),
     onBookmarkUpdated: (callback) => ipcRenderer.on('bookmark-updated', (_event, data) => callback(data)),
 
-    // Biblioteca
+    // ✅ FUNÇÕES DA BIBLIOTECA QUE FALTAVAM
+    getBookmarks: () => ipcRenderer.invoke('get-bookmarks'),
+    clearBookmarks: () => ipcRenderer.send('clear-bookmarks'),
+    removeBookmark: (url) => ipcRenderer.send('remove-bookmark', url),
+    getHistory: () => ipcRenderer.invoke('get-history'),
+    clearHistory: () => ipcRenderer.send('clear-history'),
     openLinkInNewTab: (url) => ipcRenderer.send('open-link-in-new-tab', url),
     onCreateNewTabFromLibrary: (callback) => ipcRenderer.on('create-new-tab-from-library', (_event, url) => callback(url)),
     
-    // Toggles (Tor, AdBlock)
+    // Toggles
     toggleTor: () => ipcRenderer.send('toggle-tor'),
     onTorStatusChanged: (callback) => ipcRenderer.on('tor-status-changed', (_event, isEnabled) => callback(isEnabled)),
     toggleAdBlocker: () => ipcRenderer.send('toggle-adblocker'),
