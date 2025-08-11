@@ -28,10 +28,7 @@ body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family:
     color: #8ab4f8; /* Cor azul para o estado ativado, indicando proteção */
     background-color: rgba(138, 180, 248, 0.1);
 }
-/* Estilo para os botões quando estão ativos */
-.nav-button.active {
-    color: #8ab4f8; /* Um tom de azul para indicar o estado ativo */
-}
+
 /* Arquivo: src/css/style.css */
 
 /* ... (todo o seu css existente) ... */
