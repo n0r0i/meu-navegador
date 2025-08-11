@@ -1,7 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-    
     createTab: (id, url) => ipcRenderer.send('create-tab', id, url),
     setActiveTab: (id) => ipcRenderer.send('set-active-tab', id),
     closeTab: (id) => ipcRenderer.send('close-tab', id),
@@ -38,7 +37,6 @@ openSettings: () => ipcRenderer.send('open-settings-window'),
         ipcRenderer.send('add-bookmark', bookmark);
     },
     // ... (outras funções)
-    
 
     menuItemClicked: (itemName) => ipcRenderer.send('menu-item-clicked', itemName),
     isBookmarked: (url) => ipcRenderer.invoke('is-bookmarked', url),
@@ -56,18 +54,4 @@ onBookmarkUpdated: (callback) => ipcRenderer.on('bookmark-updated', (_event, dat
     addBookmark: (bookmark) => ipcRenderer.send('add-bookmark', bookmark),
     isBookmarked: (url) => ipcRenderer.invoke('is-bookmarked', url),
     onBookmarkUpdated: (callback) => ipcRenderer.on('bookmark-updated', (_event, data) => callback(data)),
-
-     send: (channel, data) => ipcRenderer.send(channel, data),
-      invoke: (channel, data) => ipcRenderer.invoke(channel, data),
-  on: (channel, func) => ipcRenderer.on(channel, (event, ...args) => func(...args)),
-
-  // Funções para gerenciar o localStorage de forma segura
-  getFavorites: () => {
-    const favorites = localStorage.getItem('favorites');
-    return favorites ? JSON.parse(favorites) : [];
-  },
-   saveFavorites: (favorites) => {
-    localStorage.setItem('favorites', JSON.stringify(favorites));
-  }
-
 });

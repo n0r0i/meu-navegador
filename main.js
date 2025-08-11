@@ -44,33 +44,19 @@ function readSettings() {
 }
 // Dentro de main.js
 
-const createWindow = () => {
-    const win = new BrowserWindow({
-        width: 800,
-        height: 600,
-        webPreferences: {
-            preload: path.join(__dirname, 'preload.js'),
-            contextIsolation: true,
-            nodeIntegration: false
-        }
+function createMenuWindow(parentWebContents) {
+    // ... (o seu código que cria a menuWindow)
+    const menuWindow = new BrowserWindow({
+        // ... (as suas opções: x, y, width, height, etc.)
     });
 
-    // A linha para abrir as ferramentas de desenvolvedor.
-    // Ela vai nos ajudar a encontrar o erro original.
-    win.webContents.openDevTools();
+    menuWindow.loadFile(path.join(__dirname, 'src/menu.html'));
 
-    // Evento que escuta quando a página termina de carregar para atualizar a URL
-    win.webContents.on('did-finish-load', () => {
-        const url = win.webContents.getURL();
-        win.webContents.send('url-updated', url);
-    });
+    // ✅ ADICIONE ESTA LINHA TEMPORARIAMENTE PARA DEPURAÇÃO
+    menuWindow.webContents.openDevTools({ mode: 'detach' });
 
-    // Carrega o arquivo HTML inicial
-    win.loadFile('index.html');
-
-    // Retorna a janela criada
-    return win;
-};
+    // ... (o resto da função)
+}
 // --- Bloco Principal de Inicialização ---
 app.whenReady().then(async () => {
     defaultSession = session.fromPartition('persist:default');
