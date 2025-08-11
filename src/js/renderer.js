@@ -1,3 +1,5 @@
+// src/js/renderer.js - VERSÃO COM FEEDBACK VISUAL
+
 document.addEventListener('DOMContentLoaded', () => {
     // 1. Seleção de Elementos
     const tabsContainer = document.getElementById('tabs-container');
@@ -105,9 +107,9 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (!url.startsWith('file://')) {
                 const isBookmarked = await window.electronAPI.isBookmarked(url);
-                addBookmarkBtn.style.color = isBookmarked ? '#8ab4f8' : '#fff';
+                addBookmarkBtn.classList.toggle('active', isBookmarked);
             } else {
-                addBookmarkBtn.style.color = '#fff';
+                addBookmarkBtn.classList.remove('active');
             }
         }
     });
@@ -118,18 +120,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const activeTab = tabs.get(activeTabId);
         if (activeTab && !activeTab.url.startsWith('file://')) {
             const isBookmarked = await window.electronAPI.isBookmarked(activeTab.url);
-            addBookmarkBtn.style.color = isBookmarked ? '#8ab4f8' : '#fff';
+            addBookmarkBtn.classList.toggle('active', isBookmarked);
         }
     });
 
+    // ✅ LÓGICA DE FEEDBACK VISUAL ADICIONADA AQUI
     window.electronAPI.onTorStatusChanged((isEnabled) => {
-        torToggleBtn.style.color = isEnabled ? '#8ab4f8' : '#fff';
-    });
-
-    window.electronAPI.onAdBlockerStatusChanged((isEnabled) => {
-        adblockToggleBtn.style.color = isEnabled ? '#8ab4f8' : '#fff';
-    });
-
-    // 6. Iniciar
-    createNewTab();
-});
+        torToggleBtn.classList.toggle('active', isEnabled);
+        torToggleBtn.title = isEnabled ? 'Modo Anônimo (Tor) Ativado' : 'Ativar Modo
