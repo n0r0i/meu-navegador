@@ -17,7 +17,7 @@ let isTorEnabled = false;
 let sessionHistory = store.get('history', []);
 let libraryWin = null;
 let settingsWin = null;
-let isAdBlockerEnabled = store.get('adblocker_is_enabled', true);
+let isAdBlockerEnabled = true; 
 let torProcess = null;
 let blocker;
 let defaultSession;
