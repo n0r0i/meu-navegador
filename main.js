@@ -17,7 +17,6 @@ let isTorEnabled = false;
 let sessionHistory = store.get('history', []);
 let libraryWin = null;
 let settingsWin = null;
-let isAdBlockerEnabled = true;
 let torProcess = null;
 let blocker;
 let defaultSession;
@@ -69,8 +68,11 @@ app.whenReady().then(async () => {
     startTorProcess();
     await configureTorSession();
     
-    try {
+try {
         const enginePath = path.join(__dirname, 'adblocker-engine.bin');
+        if (fs.existsSync(enginePath)) {
+            blocker = ElectronBlocker.deserialize(fs.readFileSync(enginePath));
+            // ✅ SÓ ATIVA O BLOQUEADOR SE A OPÇÃO ESTIVER GUARDADA COMO ATIVA
             if (isAdBlockerEnabled) {
                 enableBlocker(defaultSession);
                 enableBlocker(torSession);
@@ -93,7 +95,6 @@ app.whenReady().then(async () => {
         win.webContents.send('adblocker-status-changed', isAdBlockerEnabled);
         win.webContents.send('tor-status-changed', isTorEnabled);
     });
-});
 
 app.on('will-quit', () => torProcess?.kill());
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
@@ -135,8 +136,21 @@ ipcMain.on('go-forward', () => views.get(activeTabId)?.webContents.goForward());
 ipcMain.on('reload', () => views.get(activeTabId)?.webContents.reload());
 
 ipcMain.on('toggle-tor', () => { isTorEnabled = !isTorEnabled; win.webContents.send('tor-status-changed', isTorEnabled); dialog.showMessageBox(win, { type: 'info', title: `Modo Anônimo`, message: `O Modo Anônimo (Tor) foi ${isTorEnabled ? 'ATIVADO' : 'DESATIVADO'}. Novas abas usarão a rede correspondente.` }); });
-ipcMain.on('toggle-adblocker', () => { if (!blocker) { console.error('AdBlocker não está disponível.'); return; } isAdBlockerEnabled = !isAdBlockerEnabled; if(isAdBlockerEnabled) { enableBlocker(defaultSession); enableBlocker(torSession); } else { disableBlocker(defaultSession); disableBlocker(torSession); } win.webContents.send('adblocker-status-changed', isAdBlockerEnabled); });
-
+ipcMain.on('toggle-adblocker', () => {
+    if (!blocker) { console.error('AdBlocker não está disponível.'); return; }
+    isAdBlockerEnabled = !isAdBlockerEnabled;
+    // Guarda a nova preferência do utilizador
+    store.set('adblocker_is_enabled', isAdBlockerEnabled);
+    
+    if (isAdBlockerEnabled) { 
+        enableBlocker(defaultSession); 
+        enableBlocker(torSession); 
+    } else { 
+        disableBlocker(defaultSession); 
+        disableBlocker(torSession); 
+    } 
+    win.webContents.send('adblocker-status-changed', isAdBlockerEnabled); 
+});
 ipcMain.handle('get-history', () => store.get('history', []));
 ipcMain.on('clear-history', () => { sessionHistory = []; store.set('history', []); });
 ipcMain.on('add-bookmark', (event, bookmark) => { const existingIndex = bookmarks.findIndex(b => b.url === bookmark.url); if (existingIndex > -1) bookmarks.splice(existingIndex, 1); else bookmarks.unshift(bookmark); store.set('bookmarks', bookmarks); win.webContents.send('bookmark-updated', { url: bookmark.url }); });
