@@ -2,6 +2,23 @@
 
 const { app, BrowserWindow, ipcMain, BrowserView, session, dialog, Menu, clipboard } = require('electron');
 const path = require('node:path');
+let win;
+const createWindow = () => {
+    const win = new BrowserWindow({
+        width: 800,
+        height: 600,
+        webPreferences: {
+            // AQUI ESTÁ A CORREÇÃO: __dirname com dois sublinhados
+            preload: path.join(__dirname, 'preload.js'),
+            
+            contextIsolation: true,
+            nodeIntegration: false
+        }
+    });
+
+
+
+
 const fs = require('node:fs');
 const { ElectronBlocker } = require('@ghostery/adblocker-electron');
 const { execFile } = require('child_process');
@@ -11,8 +28,9 @@ const Store = require('electron-store');
 const store = new Store();
 
 
+
 // --- Variáveis Globais ---
-let win;
+
 const views = new Map();
 let activeTabId = null;
 const UI_HEIGHT = 73;
@@ -29,6 +47,7 @@ let settingsWin = null;
 let bookmarks = store.get('bookmarks', []);
 
 // --- Funções Auxiliares ---
+
 function updateBounds() { if (!win || win.isDestroyed()) return; const { width, height } = win.getContentBounds(); const activeView = views.get(activeTabId); if (activeView) { activeView.setBounds({ x: 0, y: UI_HEIGHT, width: width, height: height - UI_HEIGHT }); } }
 function setActiveTab(id) { if (!views.has(id)) return; activeTabId = id; const view = views.get(id); win.setTopBrowserView(view); updateBounds(); }
 function addToHistory(view) { const url = view.webContents.getURL(); const title = view.webContents.getTitle(); if (!url.startsWith('file://') && title && (sessionHistory.length === 0 || sessionHistory[sessionHistory.length - 1].url !== url)) { sessionHistory.push({ url, title, timestamp: `${Date.now()}` }); } }
@@ -57,6 +76,9 @@ function createMenuWindow(parentWebContents) {
 
     // ... (o resto da função)
 }
+
+
+
 // --- Bloco Principal de Inicialização ---
 app.whenReady().then(async () => {
     defaultSession = session.fromPartition('persist:default');
@@ -445,5 +467,9 @@ ipcMain.on('show-selection-popup', (event, { text, rect }) => {    if (!win || w
             popupWindow.close();
         }
         popupWindow = null;
+
     });
+
+
+    
 });
