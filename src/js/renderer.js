@@ -127,4 +127,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // ✅ LÓGICA DE FEEDBACK VISUAL ADICIONADA AQUI
     window.electronAPI.onTorStatusChanged((isEnabled) => {
         torToggleBtn.classList.toggle('active', isEnabled);
-        torToggleBtn.title = isEnabled ? 'Modo Anônimo (Tor) Ativado' : 'Ativar Modo
+        torToggleBtn.title = isEnabled ? 'Modo Anônimo (Tor) Ativado' : 'Ativar Modo Anônimo (Tor)';
+    });
+
+    window.electronAPI.onAdBlockerStatusChanged((isEnabled) => {
+        adblockToggleBtn.classList.toggle('active', isEnabled);
+        adblockToggleBtn.title = isEnabled ? 'Bloqueador de Anúncios Ativado' : 'Ativar Bloqueador de Anúncios';
+    });
+
+    // 6. Iniciar
+    createNewTab();
+});
