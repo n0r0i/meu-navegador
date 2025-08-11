@@ -20,15 +20,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onBookmarkUpdated: (callback) => ipcRenderer.on('bookmark-updated', (_event, data) => callback(data)),
 
     // Biblioteca
-    getBookmarks: () => ipcRenderer.invoke('get-bookmarks'),
-    clearBookmarks: () => ipcRenderer.send('clear-bookmarks'),
-    removeBookmark: (url) => ipcRenderer.send('remove-bookmark', url),
-    getHistory: () => ipcRenderer.invoke('get-history'),
-    clearHistory: () => ipcRenderer.send('clear-history'),
     openLinkInNewTab: (url) => ipcRenderer.send('open-link-in-new-tab', url),
     onCreateNewTabFromLibrary: (callback) => ipcRenderer.on('create-new-tab-from-library', (_event, url) => callback(url)),
     
-    // Toggles
+    // Toggles (Tor, AdBlock)
     toggleTor: () => ipcRenderer.send('toggle-tor'),
     onTorStatusChanged: (callback) => ipcRenderer.on('tor-status-changed', (_event, isEnabled) => callback(isEnabled)),
     toggleAdBlocker: () => ipcRenderer.send('toggle-adblocker'),

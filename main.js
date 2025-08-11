@@ -5,7 +5,7 @@ const { ElectronBlocker } = require('@ghostery/adblocker-electron');
 const { execFile } = require('child_process');
 const Store = require('electron-store');
 
-// Variáveis
+// --- Variáveis Globais ---
 const store = new Store();
 let win;
 const views = new Map();
@@ -22,7 +22,7 @@ let defaultSession;
 let torSession;
 let bookmarks = store.get('bookmarks', []);
 
-// Funções de Janelas
+// --- Funções de Criação de Janelas ---
 function createLibraryWindow() {
     if (libraryWin && !libraryWin.isDestroyed()) { libraryWin.focus(); return; }
     libraryWin = new BrowserWindow({ width: 800, height: 600, parent: win, webPreferences: { preload: path.join(__dirname, 'preload.js') } });
@@ -39,25 +39,17 @@ function createSettingsWindow() {
     settingsWin.on('closed', () => { settingsWin = null; });
 }
 
-// Funções Auxiliares
+// --- Funções Auxiliares ---
 function updateBounds() { if (!win || win.isDestroyed()) return; const { width, height } = win.getContentBounds(); const activeView = views.get(activeTabId); if (activeView) activeView.setBounds({ x: 0, y: UI_HEIGHT, width, height: height - UI_HEIGHT }); }
 function setActiveTab(id) { if (!views.has(id)) return; activeTabId = id; const view = views.get(id); win.setTopBrowserView(view); updateBounds(); }
 function addToHistory(view) { const url = view.webContents.getURL(); const title = view.webContents.getTitle(); if (!url.startsWith('file://') && title && (sessionHistory.length === 0 || sessionHistory[0].url !== url)) { sessionHistory.unshift({ url, title, timestamp: Date.now() }); store.set('history', sessionHistory); } }
 function startTorProcess() { try { const torPath = path.join(app.getAppPath(), 'tor', process.platform === 'win32' ? 'tor.exe' : 'tor'); torProcess = execFile(torPath); } catch (e) { console.error('Falha ao iniciar Tor', e); } }
 async function configureTorSession() { try { await torSession.setProxy({ proxyRules: 'socks5://127.0.0.1:9050' }); } catch (e) { console.error('Erro ao configurar proxy Tor', e); } }
 
-function enableBlocker(sessionToEnable) {
-    if (blocker) {
-        blocker.enableBlockingInSession(sessionToEnable).catch(err => console.error('Erro ao ativar bloqueador', err));
-    }
-}
-function disableBlocker(sessionToEnable) {
-    if (blocker) {
-        blocker.disableBlockingInSession(sessionToEnable).catch(err => console.error('Erro ao desativar bloqueador', err));
-    }
-}
+function enableBlocker(sessionToEnable) { if (blocker) blocker.enableBlockingInSession(sessionToEnable).catch(err => console.error('Erro ao ativar bloqueador', err)); }
+function disableBlocker(sessionToEnable) { if (blocker) blocker.disableBlockingInSession(sessionToEnable).catch(err => console.error('Erro ao desativar bloqueador', err)); }
 
-// Início da Aplicação
+// --- Início da Aplicação ---
 app.whenReady().then(async () => {
     defaultSession = session.fromPartition('persist:default');
     torSession = session.fromPartition('persist:tor');
@@ -88,7 +80,8 @@ app.whenReady().then(async () => {
 app.on('will-quit', () => torProcess?.kill());
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
-// IPC Listeners
+// --- Listeners de Eventos IPC ---
+
 ipcMain.on('create-tab', (event, id, url) => {
     const activeSession = isTorEnabled ? torSession : defaultSession;
     const view = new BrowserView({ backgroundColor: '#FFFFFF', webPreferences: { preload: path.join(__dirname, 'preload-view.js'), sandbox: false, session: activeSession } });
@@ -108,8 +101,26 @@ ipcMain.on('go-back', () => views.get(activeTabId)?.webContents.goBack());
 ipcMain.on('go-forward', () => views.get(activeTabId)?.webContents.goForward());
 ipcMain.on('reload', () => views.get(activeTabId)?.webContents.reload());
 
-ipcMain.on('toggle-tor', (event) => { isTorEnabled = !isTorEnabled; win.webContents.send('tor-status-changed', isTorEnabled); dialog.showMessageBox(win, { type: 'info', title: `Modo Anônimo`, message: `O Modo Anônimo (Tor) foi ${isTorEnabled ? 'ATIVADO' : 'DESATIVADO'}. Novas abas usarão a rede correspondente.` }); });
-ipcMain.on('toggle-adblocker', (event) => { isAdBlockerEnabled = !isAdBlockerEnabled; if(isAdBlockerEnabled) { enableBlocker(defaultSession); enableBlocker(torSession); } else { disableBlocker(defaultSession); disableBlocker(torSession); } win.webContents.send('adblocker-status-changed', isAdBlockerEnabled); });
+ipcMain.on('toggle-tor', () => { isTorEnabled = !isTorEnabled; win.webContents.send('tor-status-changed', isTorEnabled); dialog.showMessageBox(win, { type: 'info', title: `Modo Anônimo`, message: `O Modo Anônimo (Tor) foi ${isTorEnabled ? 'ATIVADO' : 'DESATIVADO'}. Novas abas usarão a rede correspondente.` }); });
+// Dentro de main.js
+
+ipcMain.on('toggle-adblocker', () => {
+    // ✅ VERIFICAÇÃO ADICIONADA: Se o blocker não existe, não faz nada.
+    if (!blocker) {
+        console.error('AdBlocker não está disponível. Execute "npm run build:adblocker"');
+        return;
+    }
+
+    isAdBlockerEnabled = !isAdBlockerEnabled;
+    if (isAdBlockerEnabled) {
+        enableBlocker(defaultSession);
+        enableBlocker(torSession);
+    } else {
+        disableBlocker(defaultSession);
+        disableBlocker(torSession);
+    }
+    win.webContents.send('adblocker-status-changed', isAdBlockerEnabled);
+});
 
 ipcMain.handle('get-history', () => store.get('history', []));
 ipcMain.on('clear-history', () => { sessionHistory = []; store.set('history', []); });
