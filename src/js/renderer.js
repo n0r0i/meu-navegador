@@ -12,6 +12,9 @@ window.addEventListener('DOMContentLoaded', () => {
     const settingsBtn = document.getElementById('settings-btn');
     const adblockToggleBtn = document.getElementById('adblock-toggle-btn');
     const addBookmarkBtn = document.getElementById('add-bookmark-btn');
+    const sidebar = document.getElementById('sidebar');
+    const sidebarToggleBtn = document.getElementById('sidebar-toggle-btn');
+    const splitViewBtn = document.getElementById('split-view-btn');
 
     // --- 2. Variáveis de Estado ---
     let tabs = new Map();
@@ -71,6 +74,15 @@ window.addEventListener('DOMContentLoaded', () => {
     settingsBtn.addEventListener('click', () => window.electronAPI.openSettingsWindow());
     torToggleBtn.addEventListener('click', () => window.electronAPI.toggleTor());
     adblockToggleBtn.addEventListener('click', () => window.electronAPI.toggleAdBlocker());
+
+    sidebarToggleBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('visible');
+        window.electronAPI.toggleSidebar(sidebar.classList.contains('visible'));
+    });
+
+    splitViewBtn.addEventListener('click', () => {
+        window.electronAPI.toggleSplitView();
+    });
 
     addBookmarkBtn.addEventListener('click', () => {
         const activeTabData = tabs.get(activeTabId);

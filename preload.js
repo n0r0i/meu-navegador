@@ -38,4 +38,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     showInputContextMenu: () => ipcRenderer.send('show-input-context-menu'),
     showContextMenu: (selection) => ipcRenderer.send('show-context-menu', selection),
     popupAction: (action, text) => ipcRenderer.send('popup-action', { action, text }),
+
+    // --- Barra Lateral ---
+    toggleSidebar: (isVisible) => ipcRenderer.send('sidebar-toggled', isVisible),
+
+    // --- Tela Dividida ---
+    toggleSplitView: () => ipcRenderer.send('toggle-split-view'),
 });

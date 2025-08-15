@@ -27,10 +27,34 @@ let defaultSession;
 let torSession;
 let settingsWin = null;
 let bookmarks = store.get('bookmarks', []);
+let isSidebarVisible = false;
+const SIDEBAR_WIDTH = 200;
 
 // --- Funções Auxiliares ---
-function updateBounds() { if (!win || win.isDestroyed()) return; const { width, height } = win.getContentBounds(); const activeView = views.get(activeTabId); if (activeView) { activeView.setBounds({ x: 0, y: UI_HEIGHT, width: width, height: height - UI_HEIGHT }); } }
-function setActiveTab(id) { if (!views.has(id)) return; activeTabId = id; const view = views.get(id); win.setTopBrowserView(view); updateBounds(); }
+function updateBounds() {
+    if (!win || win.isDestroyed()) return;
+    const { width, height } = win.getContentBounds();
+    const tab = views.get(activeTabId);
+    if (!tab) return;
+
+    const x = isSidebarVisible ? SIDEBAR_WIDTH : 0;
+    const availableWidth = width - x;
+
+    if (tab.mode === 'split' && tab.right) {
+        const halfWidth = Math.floor(availableWidth / 2);
+        tab.left.setBounds({ x, y: UI_HEIGHT, width: halfWidth, height: height - UI_HEIGHT });
+        tab.right.setBounds({ x: x + halfWidth, y: UI_HEIGHT, width: availableWidth - halfWidth, height: height - UI_HEIGHT });
+    } else { // Single mode
+        tab.left.setBounds({ x, y: UI_HEIGHT, width: availableWidth, height: height - UI_HEIGHT });
+    }
+}
+function setActiveTab(id) {
+    if (!views.has(id)) return;
+    activeTabId = id;
+    const tab = views.get(id);
+    win.setTopBrowserView(tab.left);
+    updateBounds();
+}
 function addToHistory(view) { const url = view.webContents.getURL(); const title = view.webContents.getTitle(); if (!url.startsWith('file://') && title && (sessionHistory.length === 0 || sessionHistory[sessionHistory.length - 1].url !== url)) { sessionHistory.push({ url, title, timestamp: `${Date.now()}` }); } }
 function enableBlocker(blockerInstance, sessionToEnable) { try { blockerInstance.enableBlockingInSession(sessionToEnable); } catch (error) { if (!error.message.includes('Attempted to register a second handler')) { console.error('Erro inesperado ao ativar o bloqueador:', error); throw error; } } }
 function startTorProcess() { try { const torPath = path.join(app.getAppPath(), 'tor', process.platform === 'win32' ? 'tor.exe' : 'tor'); torProcess = execFile(torPath); console.log('Processo Tor iniciado.'); } catch (error) { console.error('Falha ao iniciar o Tor. Verifique o caminho e as permissões.', error); } }
@@ -95,7 +119,7 @@ const view = new BrowserView({
 });
 
     win.addBrowserView(view);
-    views.set(id, view);
+    views.set(id, { left: view, right: null, mode: 'single' });
     
     // (O resto da configuração da view, como 'updateTabData', etc., continua igual)
     const updateTabData = () => { if (win && !win.isDestroyed()) { win.webContents.send('tab-updated', { id, title: view.webContents.getTitle(), url: view.webContents.getURL(), canGoBack: view.webContents.navigationHistory.canGoBack(), canGoForward: view.webContents.navigationHistory.canGoForward() }); } };
@@ -132,14 +156,71 @@ const view = new BrowserView({
 ipcMain.on('toggle-tor', async (event) => { isTorEnabled = !isTorEnabled; dialog.showMessageBox(win, { type: 'info', title: `Modo Anônimo ${isTorEnabled ? 'Ativado' : 'Desativado'}`, message: `O modo anônimo foi ${isTorEnabled ? 'ATIVADO' : 'DESATIVADO'}.\n\nNovas abas usarão a ${isTorEnabled ? 'rede Tor' : 'conexão normal'}.\nAbas existentes não serão afetadas.` }); if (win && !win.isDestroyed()) { win.webContents.send('tor-status-changed', isTorEnabled); } });
 ipcMain.on('toggle-adblocker', () => { if (!blocker) { console.log('Motor de bloqueio não está disponível.'); return; } isAdBlockerEnabled = !isAdBlockerEnabled; if (isAdBlockerEnabled) { enableBlocker(blocker, defaultSession); enableBlocker(blocker, torSession); console.log('Bloqueador reativado.'); } else { blocker.disableBlockingInSession(defaultSession); blocker.disableBlockingInSession(torSession); console.log('Bloqueador desativado.'); } if (win && !win.isDestroyed()) { win.webContents.send('adblocker-status-changed', isAdBlockerEnabled); } });
 ipcMain.on('set-active-tab', (event, id) => setActiveTab(id));
-ipcMain.on('close-tab', (event, id) => { const view = views.get(id); if (view) { win.removeBrowserView(view); view.webContents.destroy(); views.delete(id); if (activeTabId === id) activeTabId = null; } });
-ipcMain.on('navigate-to', (event, url) => views.get(activeTabId)?.webContents.loadURL(url));
-ipcMain.on('go-back', () => views.get(activeTabId)?.webContents.goBack());
-ipcMain.on('go-forward', () => views.get(activeTabId)?.webContents.goForward());
-ipcMain.on('reload', () => views.get(activeTabId)?.webContents.reload());
+ipcMain.on('close-tab', (event, id) => {
+    const tab = views.get(id);
+    if (tab) {
+        if (tab.left) {
+            win.removeBrowserView(tab.left);
+            tab.left.webContents.destroy();
+        }
+        if (tab.right) {
+            win.removeBrowserView(tab.right);
+            tab.right.webContents.destroy();
+        }
+        views.delete(id);
+        if (activeTabId === id) activeTabId = null;
+    }
+});
+ipcMain.on('navigate-to', (event, url) => views.get(activeTabId)?.left.webContents.loadURL(url));
+ipcMain.on('go-back', () => views.get(activeTabId)?.left.webContents.goBack());
+ipcMain.on('go-forward', () => views.get(activeTabId)?.left.webContents.goForward());
+ipcMain.on('reload', () => views.get(activeTabId)?.left.webContents.reload());
 ipcMain.on('menu-item-clicked', (event, itemName) => { if (itemName === 'history' || itemName === 'downloads') { if (libraryWin) { libraryWin.focus(); return; } libraryWin = new BrowserWindow({ width: 800, height: 600, parent: win, webPreferences: { preload: path.join(__dirname, 'preload.js') } }); libraryWin.removeMenu(); libraryWin.loadFile('src/library.html'); libraryWin.on('closed', () => { libraryWin = null; }); } });
 ipcMain.handle('get-history', () => sessionHistory.slice().reverse());
 ipcMain.on('clear-history', () => { sessionHistory = []; });
+
+ipcMain.on('sidebar-toggled', (event, isVisible) => {
+    isSidebarVisible = isVisible;
+    updateBounds();
+});
+
+ipcMain.on('toggle-split-view', (event) => {
+    const tab = views.get(activeTabId);
+    if (!tab) return;
+
+    if (tab.mode === 'single') {
+        tab.mode = 'split';
+        const activeSession = isTorEnabled ? torSession : defaultSession;
+        const rightView = new BrowserView({
+            backgroundColor: '#202324',
+            webPreferences: {
+                preload: path.join(__dirname, 'preload-view.js'),
+                sandbox: false,
+                session: activeSession,
+            }
+        });
+
+        tab.right = rightView;
+        win.addBrowserView(rightView);
+
+        const settings = readSettings();
+        const cssPath = path.join(__dirname, 'src', 'css', 'start.css');
+        const jsPath = path.join(__dirname, 'src', 'js', 'start.js');
+        rightView.webContents.loadFile(
+            path.join(__dirname, 'src', 'start.html'),
+            { query: { bg: settings?.backgroundImage, css: nodeURL.pathToFileURL(cssPath).href, js: nodeURL.pathToFileURL(jsPath).href } }
+        );
+
+    } else { // 'split'
+        tab.mode = 'single';
+        if (tab.right) {
+            win.removeBrowserView(tab.right);
+            tab.right.webContents.destroy();
+            tab.right = null;
+        }
+    }
+    updateBounds();
+});
 
 
 // DENTRO DE main.js
@@ -347,10 +428,8 @@ ipcMain.on('open-settings-window', () => {
 });
 
 ipcMain.on('navigate-current-tab', (event, url) => {
-    // Pega a BrowserView da aba que está ativa no momento
-    const activeView = views.get(activeTabId);
+    const activeView = views.get(activeTabId)?.left;
     if (activeView) {
-        // Manda ela navegar para a nova URL
         activeView.webContents.loadURL(url);
     }
 });
@@ -362,29 +441,75 @@ ipcMain.on('popup-action', (event, { action, text }) => {
 
 ipcMain.on('show-context-menu', (event, selectedText) => {
     console.log("--- Main.js recebeu 'show-context-menu' ---"); // LOG 10
-    const template = []; if (selectedText.length > 0) { template.push({ label: 'Copiar', role: 'copy', }, { label: `Pesquisar "${selectedText.substring(0, 20)}..."`, click: () => { const url = `https://www.google.com/search?q=${encodeURIComponent(selectedText)}`; win.webContents.send('create-new-tab-for-url', url); } }, { type: 'separator' }); } template.push({ label: 'Voltar', enabled: views.get(activeTabId)?.webContents.canGoBack(), click: () => views.get(activeTabId)?.webContents.goBack() }, { label: 'Avançar', enabled: views.get(activeTabId)?.webContents.canGoForward(), click: () => views.get(activeTabId)?.webContents.goForward() },     { 
-        label: 'Recarregar', 
-        click: () => {
-            // ✅ CORREÇÃO: Pega a aba ativa e recarrega apenas ela
-            const activeView = views.get(activeTabId);
-            if (activeView) {
-                activeView.webContents.reload();
-            }
-        } 
-    }, { label: 'Imprimir...', click: () => views.get(activeTabId)?.webContents.print() }, { 
-    label: 'Inspecionar elemento', 
-    click: () => {
-        // ✅ CORREÇÃO: Abre as DevTools em uma janela separada (undocked)
-        const activeView = views.get(activeTabId);
-        if (activeView) {
-            activeView.webContents.openDevTools({ mode: 'undocked' });
-        }
-    } 
-}); const menu = Menu.buildFromTemplate(template); menu.popup({ window: win }); });
+    const activeView = views.get(activeTabId)?.left;
+    if (!activeView) return;
+
+    const template = [];
+    if (selectedText.length > 0) {
+        template.push(
+            { label: 'Copiar', role: 'copy' },
+            { label: `Pesquisar "${selectedText.substring(0, 20)}..."`, click: () => { const url = `https://www.google.com/search?q=${encodeURIComponent(selectedText)}`; win.webContents.send('create-new-tab-for-url', url); } },
+            { type: 'separator' }
+        );
+    }
+    template.push(
+        { label: 'Voltar', enabled: activeView.webContents.canGoBack(), click: () => activeView.webContents.goBack() },
+        { label: 'Avançar', enabled: activeView.webContents.canGoForward(), click: () => activeView.webContents.goForward() },
+        { label: 'Recarregar', click: () => activeView.webContents.reload() },
+        { label: 'Imprimir...', click: () => activeView.webContents.print() },
+        { label: 'Inspecionar elemento', click: () => activeView.webContents.openDevTools({ mode: 'undocked' }) }
+    );
+    const menu = Menu.buildFromTemplate(template);
+    menu.popup({ window: win });
+});
 
 ipcMain.on('show-selection-popup', (event, { text, rect }) => {
     console.log("--- Main.js recebeu 'show-selection-popup' ---"); // LOG 11
-    if (!win || win.isDestroyed()) { return; } if (popupWindow) popupWindow.close(); const mainBounds = win.getBounds(); const view = views.get(activeTabId); if (!view || view.webContents.isDestroyed()) { return; } const viewBounds = view.getBounds(); const popupHeight = 55; const popupWidth = 260; popupWindow = new BrowserWindow({ x: mainBounds.x + viewBounds.x + rect.x, y: mainBounds.y + viewBounds.y + rect.y - popupHeight - 5, width: popupWidth, height: popupHeight, frame: false, transparent: true, alwaysOnTop: true, resizable: false, movable: false, show: false, webPreferences: { preload: path.join(__dirname, 'preload-popup.js'), session: defaultSession, devTools: false } }); const urlParams = new URLSearchParams({ text }).toString(); popupWindow.loadFile(path.join(__dirname, 'src/popup.html'), { search: urlParams }); popupWindow.once('ready-to-show', () => { if (popupWindow && !popupWindow.isDestroyed()) { popupWindow.show(); } }); popupWindow.on('blur', () => { if (popupWindow && !popupWindow.isDestroyed()) { popupWindow.close(); } popupWindow = null; }); });
+    if (!win || win.isDestroyed()) { return; }
+    if (popupWindow) popupWindow.close();
+
+    const mainBounds = win.getBounds();
+    const view = views.get(activeTabId)?.left;
+    if (!view || view.webContents.isDestroyed()) { return; }
+
+    const viewBounds = view.getBounds();
+    const popupHeight = 55;
+    const popupWidth = 260;
+
+    popupWindow = new BrowserWindow({
+        x: mainBounds.x + viewBounds.x + rect.x,
+        y: mainBounds.y + viewBounds.y + rect.y - popupHeight - 5,
+        width: popupWidth,
+        height: popupHeight,
+        frame: false,
+        transparent: true,
+        alwaysOnTop: true,
+        resizable: false,
+        movable: false,
+        show: false,
+        webPreferences: {
+            preload: path.join(__dirname, 'preload-popup.js'),
+            session: defaultSession,
+            devTools: false
+        }
+    });
+
+    const urlParams = new URLSearchParams({ text }).toString();
+    popupWindow.loadFile(path.join(__dirname, 'src/popup.html'), { search: urlParams });
+
+    popupWindow.once('ready-to-show', () => {
+        if (popupWindow && !popupWindow.isDestroyed()) {
+            popupWindow.show();
+        }
+    });
+
+    popupWindow.on('blur', () => {
+        if (popupWindow && !popupWindow.isDestroyed()) {
+            popupWindow.close();
+        }
+        popupWindow = null;
+    });
+});
 
 ipcMain.on('hide-selection-popup', () => {
     if (popupWindow && !popupWindow.isDestroyed()) {

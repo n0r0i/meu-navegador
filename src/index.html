@@ -7,32 +7,37 @@
 </head>
 <body>
     <div class="app-container">
-        <div class="tab-bar">
-            <div id="tabs-container" class="tabs-container"></div>
-            <button id="new-tab-btn" class="new-tab-button" title="Nova Aba">+</button>
+        <div id="sidebar" class="sidebar">
+            <!-- O conteúdo da barra lateral irá aqui -->
+            <h4>Ferramentas</h4>
+            <ul>
+                <li>Scrapbook</li>
+                <li>Música</li>
+                <li>Vídeos</li>
+            </ul>
         </div>
-<div class="nav-bar">
-    <button id="back-btn" class="nav-button">←</button>
-    <button id="forward-btn" class="nav-button">→</button>
-    <button id="reload-btn" class="nav-button">↻</button>
-    <button id="add-bookmark-btn" class="nav-button" title="Adicionar aos Favoritos">⭐</button>
-    <button id="tor-toggle-btn" class="nav-button" title="Ativar/Desativar Modo Anônimo (Tor)">🧅</button>
-    <button id="adblock-toggle-btn" class="nav-button" title="Ativar/Desativar Bloqueador">🛡️</button>
-    <input type="text" id="url-input" placeholder="Digite uma URL ou pesquise">
-    <button id="settings-btn" title="Configurações">⚙️</button>
-</div>
-        <div class="main-container">
-            <div class="content"></div>
+        <div class="main-view">
+            <div class="tab-bar">
+                <div id="tabs-container" class="tabs-container"></div>
+                <button id="new-tab-btn" class="new-tab-button" title="Nova Aba">+</button>
+            </div>
+            <div class="nav-bar">
+                <button id="sidebar-toggle-btn" class="nav-button" title="Alternar Barra Lateral">☰</button>
+                <button id="back-btn" class="nav-button">←</button>
+                <button id="forward-btn" class="nav-button">→</button>
+                <button id="reload-btn" class="nav-button">↻</button>
+                <button id="split-view-btn" class="nav-button" title="Dividir Tela">◧</button>
+                <button id="add-bookmark-btn" class="nav-button" title="Adicionar aos Favoritos">⭐</button>
+                <button id="tor-toggle-btn" class="nav-button" title="Ativar/Desativar Modo Anônimo (Tor)">🧅</button>
+                <button id="adblock-toggle-btn" class="nav-button" title="Ativar/Desativar Bloqueador">🛡️</button>
+                <input type="text" id="url-input" placeholder="Digite uma URL ou pesquise">
+                <button id="settings-btn" title="Configurações">⚙️</button>
+            </div>
+            <div class="content-area">
+                <!-- As BrowserViews do Electron serão exibidas aqui -->
+            </div>
         </div>
     </div>
-
-    <div class="toolbar">
-    <input type="text" id="url-input" placeholder="Digite um endereço ou pesquisa">
-
-    <button id="settings-btn" title="Configurações">⚙️</button>
-</div>
-    
-    
     <script src="./js/renderer.js" defer></script>
 </body>
 </html>
